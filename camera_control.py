@@ -7,21 +7,15 @@ import threading
 import time
 import sys
 import queue
-# Import only necessary component from the processing module
-from processing_utils import render_chunk 
-# Import the queue from the worker module
-from render_worker import render_queue 
 # Import the buffer class for type hinting
-from buffer_control import CircularBuffer
+from buffer_control import CircularBuffer 
+# Import the chunk duration from the central config
+from config import CHUNK_DURATION_S 
 
 # Global events for thread communication
 stop_recording = threading.Event()
 fs_error_detected = threading.Event()
 
-# --- GLOBAL SETTINGS ---
-# Set chunk duration: 60 seconds reduces FFmpeg launching overhead
-CHUNK_DURATION_S = 60 
-# --- END GLOBAL SETTINGS ---
 
 def set_line_source(cam, line_name, source_name):
     """
@@ -52,7 +46,6 @@ def set_line_source(cam, line_name, source_name):
 def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
     """
     Continuously acquires images and writes them to the in-memory CircularBuffer.
-    Receives the buffer instance explicitly.
     """
     global stop_recording
     nodemap = cam.GetNodeMap()
@@ -70,6 +63,7 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
     if DURATION is not None:
         print(f"[INFO] Capture will stop automatically after {DURATION} s")
     
+    # CHUNK_DURATION_S is imported, this calculation is correct
     FRAMES_PER_CHUNK = FRAMERATE * CHUNK_DURATION_S 
     
     i = 0 # Total frames acquired
@@ -86,7 +80,7 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
                 t_first_frame = time.perf_counter()       
             
             if image_result.IsIncomplete():
-                print(f"[WARNING] Incomplete image {i}")
+                print(f"\n[WARNING] Incomplete image {i}")
                 image_result.Release()
                 continue
 
@@ -100,10 +94,8 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
                     stop_recording.set()
 
             # 2. WRITE TO BUFFER (FAST, RAM operation)
-            # Use the passed 'buffer' instance
             current_frame_index = buffer.put(np_image) 
-            print(f"[INFO] Frame {current_frame_index:07d} acquired and buffered.", end='\r')
-
+            
             image_result.Release()
             t_last_frame = time.perf_counter()
             i += 1

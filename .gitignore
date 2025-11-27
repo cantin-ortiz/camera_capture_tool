@@ -1,0 +1,38 @@
+# ____________________________________________________________________________
+# 1. PYTHON BYTECODE AND ENVIRONMENT
+# ____________________________________________________________________________
+# Compiled Python files (pyc, pyo)
+__pycache__/
+*.py[co]
+
+# Virtual environment folders
+.venv
+venv/
+env/
+
+# IDE files (e.g., VS Code, PyCharm)
+.vscode/
+.idea/
+
+# ____________________________________________________________________________
+# 2. APPLICATION GENERATED FILES
+# ____________________________________________________________________________
+# The main directory created by get_save_path() and its contents (frames, chunks, logs)
+# This ignores the main dynamic output folder structure (~/Documents/flea3_recordings/...)
+/flea3_recordings/
+/VIDEO_*/
+# Ignore the generated output video and log file in the base directory
+*.mp4
+*.csv
+
+# Ignore temporary chunk files created by the worker
+*.ts
+
+# Ignore the temporary list file created by the render worker
+final_chunk_paths.txt
+
+# ____________________________________________________________________________
+# 3. OPERATING SYSTEM FILES
+# ____________________________________________________________________________
+.DS_Store
+Thumbs.db
