@@ -427,7 +427,8 @@ def record_video(
                 print(f"[CLEANUP ERROR] Camera hardware cleanup failed: {cleanup_error}")
     
         # Delete frames and chunks if required
-        cleanup_frames(save_path, DELETE_FRAMES, video_success)
+        final_delete_frames = DELETE_FRAMES and not SKIP_CLEANUP
+        cleanup_frames(save_path, final_delete_frames, video_success)
 
 
 if __name__ == "__main__":
