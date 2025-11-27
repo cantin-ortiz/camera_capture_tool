@@ -6,10 +6,22 @@ import cv2
 import threading
 import time
 import sys
+import queue
+# Import only necessary component from the processing module
+from processing_utils import render_chunk 
+# Import the queue from the worker module
+from render_worker import render_queue 
+# Import the buffer class for type hinting
+from buffer_control import CircularBuffer
 
 # Global events for thread communication
 stop_recording = threading.Event()
 fs_error_detected = threading.Event()
+
+# --- GLOBAL SETTINGS ---
+# Set chunk duration: 60 seconds reduces FFmpeg launching overhead
+CHUNK_DURATION_S = 60 
+# --- END GLOBAL SETTINGS ---
 
 def set_line_source(cam, line_name, source_name):
     """
@@ -37,9 +49,10 @@ def set_line_source(cam, line_name, source_name):
     print(f"[INFO] Set {line_name} LineSource to {source_name}")
 
 
-def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
+def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
     """
-    Continuously acquires images from the camera and saves them to disk.
+    Continuously acquires images and writes them to the in-memory CircularBuffer.
+    Receives the buffer instance explicitly.
     """
     global stop_recording
     nodemap = cam.GetNodeMap()
@@ -52,17 +65,22 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
     
     t_set_line_exposure = time.perf_counter()
     cam.BeginAcquisition()
-    print("[INFO] Started acquisition. Press ENTER to stop recording.")
+    print("[INFO] Started acquisition. Press ENTER or 'q' to stop recording.")
 
     if DURATION is not None:
-        print(f"[INFO] Otherwise, capture will stop automatically after {DURATION} s")
-    i = 0
+        print(f"[INFO] Capture will stop automatically after {DURATION} s")
+    
+    FRAMES_PER_CHUNK = FRAMERATE * CHUNK_DURATION_S 
+    
+    i = 0 # Total frames acquired
     t_first_frame = 0
     t_last_frame = 0
+    
+    current_frame_index = 0
 
     while not stop_recording.is_set():
         try:
-            # GetNextImage with 1 second timeout
+            # 1. READ CAMERA (Time-critical operation)
             image_result = cam.GetNextImage(1000) 
             if i == 0:
                 t_first_frame = time.perf_counter()       
@@ -74,26 +92,23 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
 
             np_image = image_result.GetNDArray()
             
-            # ---------------------------
             # LIVE VIDEO PREVIEW
-            # Display frame only once every 5 iterations (50 FPS / 5 = 10 FPS display)
-            if LIVE_VIDEO and (i % 5 == 0):
+            if LIVE_VIDEO:
                 cv2.imshow('Live Camera Feed', np_image)
                 if cv2.waitKey(1) & 0xFF == ord('q'):
+                    print("\n[INFO] 'q' pressed. Stopping recording...")
                     stop_recording.set()
-            # ---------------------------
 
-            # Save frame to disk
-            filename = os.path.join(save_path, f"frame_{i:07d}.jpg")
-            # Note: OpenCV's imwrite can take parameters for JPEG quality if needed
-            cv2.imwrite(filename, np_image) 
-            print(f"[INFO] Saved {filename}", end='\r')
+            # 2. WRITE TO BUFFER (FAST, RAM operation)
+            # Use the passed 'buffer' instance
+            current_frame_index = buffer.put(np_image) 
+            print(f"[INFO] Frame {current_frame_index:07d} acquired and buffered.", end='\r')
 
             image_result.Release()
             t_last_frame = time.perf_counter()
             i += 1
-
-            # Automatically stop after the set duration
+            
+            # Automatic stop after duration check
             if DURATION is not None and (t_last_frame - t_first_frame) > DURATION:
                 stop_recording.set()
 
@@ -102,7 +117,6 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
             stop_recording.set()
             break
         except cv2.error as e:
-            # Handle OpenCV GUI issues
             print(f"\n[ERROR] OpenCV error in acquisition: {e}")
             stop_recording.set()
             break
@@ -110,7 +124,6 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
     # End acquisition and reset strobe signal
     try:
         cam.EndAcquisition()
-        # Set strobe signal back to constant state (Strobe OFF)
         source_name = f"UserOutput{LINE}" if LINE in (1, 2) else "UserOutput1"
         set_line_source(cam, f"Line{LINE}", source_name)
         print("[INFO] Strobe disabled.")
@@ -120,7 +133,7 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
 
     print("\n[INFO] Acquisition complete")
 
-    # Save and check timing data
+    # Save and Check timing data (i is the total frames ACQUIRED)
     _process_timing(save_path, i, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE)
 
     return    
@@ -128,7 +141,7 @@ def acquire_images(cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
 
 def _process_timing(save_path, nframes, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE):
     """
-    Internal helper to calculate and save timing data.
+    Internal helper to calculate and save timing data (Original simple CSV format).
     """
     global fs_error_detected
     
@@ -145,8 +158,8 @@ def _process_timing(save_path, nframes, t_first_frame, t_last_frame, t_set_line_
         fs_error_detected.set()
         print(f"[ERROR] Estimated frame rate ({estimated_fs:.1f} Hz) differs from expected ({FRAMERATE} Hz) by more than 1 Hz. Video won't be rendered but frames remained saved.")
 
-    # Saving time edges 
-    try:									 
+    # Saving time edges
+    try:
         csv_name = os.path.basename(save_path) + ".csv"
         output_file = os.path.join(os.path.dirname(save_path), csv_name)     
         with open(output_file, "w") as f:
