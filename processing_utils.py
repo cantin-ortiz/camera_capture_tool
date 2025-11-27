@@ -17,7 +17,6 @@ def get_save_path(base_dir):
 def render_chunk(image_folder, chunk_num, start_frame, n_frames, framerate):
     """
     Renders a specific sequence of frames into a temporary MPEG Transport Stream (.ts) file.
-    .ts format is ideal for fast concatenation later.
     """
     filename_num = chunk_num + 1 
     chunk_file = os.path.join(image_folder, f"chunk_{filename_num:03d}.ts")
@@ -59,7 +58,6 @@ def render_chunk(image_folder, chunk_num, start_frame, n_frames, framerate):
         print(f"[ERROR] FFmpeg chunk rendering failed for chunk {chunk_num}. Exit code {e.returncode}.")
         # --- DEBUG OUTPUT ---
         print("\n--- FFmpeg Stderr Output START ---")
-        # Print the detailed stderr output captured by subprocess.run
         print(e.stderr)
         print("--- FFmpeg Stderr Output END ---\n")
         # --------------------
@@ -70,17 +68,52 @@ def render_chunk(image_folder, chunk_num, start_frame, n_frames, framerate):
 
 def create_video_from_images(image_folder, output_file, framerate, generate_video, chunk_paths):
     """
-    Concatenates the temporary chunk files into a single MP4 video.
-    chunk_paths contains the sorted list of paths in the FFmpeg format ('file 'path'').
+    If chunk_paths is provided, concatenates temporary chunk files (concurrent mode).
+    If chunk_paths is empty, renders the video sequentially from all frames (sequential mode).
     """
     if not generate_video:
         print("[INFO] Video generation skipped.")
         return False
         
     if not chunk_paths:
-        print("[WARNING] No chunks found to concatenate. Video generation skipped.")
-        return False
-
+        # --- SEQUENTIAL RENDERING MODE ---
+        print("[INFO] No chunk paths provided. Rendering video sequentially from all frames...")
+        
+        # Input pattern: specifies starting frame and number of digits
+        input_pattern = os.path.join(image_folder, "frame_%07d.jpg")
+        
+        cmd = [
+            'ffmpeg',
+            '-y', 
+            '-framerate', str(framerate), # Input framerate
+            '-i', input_pattern,          # Input image sequence
+            
+            # Encoding parameters 
+            '-c:v', 'libx264',
+            '-preset', 'ultrafast',
+            '-crf', '23', 
+            '-pix_fmt', 'yuv420p',
+            
+            output_file
+        ]
+        
+        success = False
+        try:
+            # Run FFmpeg and capture output for debugging
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True) 
+            print("[INFO] Sequential video rendering complete.")
+            success = True
+        except subprocess.CalledProcessError as e:
+            print(f"[ERROR] Sequential FFmpeg rendering failed. Exit code {e.returncode}.")
+            print("\n--- Sequential FFmpeg Stderr Output START ---")
+            print(e.stderr)
+            print("--- Sequential FFmpeg Stderr Output END ---\n")
+        except FileNotFoundError:
+            print("[ERROR] FFmpeg command not found.")
+        
+        return success
+        
+    # --- CHUNK CONCATENATION MODE ---
     print("[INFO] Concatenating temporary video chunks...")
 
     # 1. Create a temporary list file for FFmpeg to read

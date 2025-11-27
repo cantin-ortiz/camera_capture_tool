@@ -8,18 +8,22 @@ import os
 import PySpin
 import cv2  
 import numpy as np 
+# NEW IMPORT: For process-based concurrency
 import multiprocessing 
 from config import CHUNK_DURATION_S 
 from buffer_control import CircularBuffer 
+# Import all camera/acquisition functions from the camera module
 from camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected
+# Import all file/processing utilities from the processing module
 from processing_utils import get_save_path, create_video_from_images, cleanup_frames
+# Import worker components
 from render_worker import render_worker
 from saving_worker import saving_worker, stop_saving_worker
 
 # Define the dynamic default path: ~/Documents/flea3_recordings
 DEFAULT_SAVE_PATH = os.path.join(os.path.expanduser('~'), "Documents", "flea3_recordings")
 
-# --- GLOBAL MULTIPROCESSING COMPONENTS (Defined as None globally) ---
+# --- GLOBAL MULTIPROCESSING COMPONENTS ---
 manager = None
 render_queue = None
 stop_worker = None
@@ -27,7 +31,7 @@ stop_worker = None
 
 # ____________________________________________________________________________
 #
-# ARGUMENT PARSING (remains the same)
+# ARGUMENT PARSING
 # ____________________________________________________________________________
 
 parser = argparse.ArgumentParser(description="Record from FLIR camera.")
@@ -46,6 +50,10 @@ parser.add_argument('--keep-frames', dest='clear', action='store_false', help='K
 parser.set_defaults(clear=True)
 parser.add_argument('--nolive', dest='livevideo', action='store_false', help='Do not display live video')
 parser.set_defaults(livevideo=True)
+parser.add_argument('--noparallel', dest='concurrent', action='store_false', help='Skip concurrent chunk rendering and render video sequentially at the end.')
+parser.set_defaults(concurrent=True)
+
+
 args = parser.parse_args()
 
 # Set variables
@@ -56,6 +64,8 @@ GENERATE_VIDEO = args.rendervid
 DELETE_FRAMES = args.clear
 LIVE_VIDEO = args.livevideo
 LINE = args.line
+# >>> NEW VARIABLE <<<
+CONCURRENT_RENDER = args.concurrent
 
 
 # ____________________________________________________________________________
@@ -72,7 +82,6 @@ def wait_for_enter():
 # ____________________________________________________________________________
 
 def main(render_queue, stop_worker):
-    # The multiprocessing objects are now passed as arguments
     
     system = PySpin.System.GetInstance()
     cam_list = system.GetCameras()
@@ -91,7 +100,6 @@ def main(render_queue, stop_worker):
     set_line_source(cam, f"Line{LINE}", source_name)
 
     # --- INITIALIZE CIRCULAR BUFFER ---
-    # Buffer size increased to 2 chunks for safety (2 * 10s * 50Hz = 1000 frames)
     BUFFER_SIZE = FRAMERATE * (CHUNK_DURATION_S * 2) 
     buffer = CircularBuffer(size=BUFFER_SIZE)
     print(f"[INFO] Initialized Circular Buffer with size: {BUFFER_SIZE} frames ({BUFFER_SIZE/FRAMERATE:.1f}s).")
@@ -106,24 +114,27 @@ def main(render_queue, stop_worker):
         if not os.path.exists(save_path):
             os.makedirs(save_path)
 
-        # 1. Start the Render Worker PROCESS (FFmpeg)
-        render_process = multiprocessing.Process(
-            target=render_worker, 
-            # Pass the multiprocessing.Queue and Event
-            args=(save_path, FRAMERATE, render_queue, stop_worker) 
-        )
-        render_process.start()
-        print(f"[INFO] Rendering process started (PID: {render_process.pid}).")
+        # 1. Start the Render Worker PROCESS (CONDITIONAL START)
+        render_process = None
+        if CONCURRENT_RENDER:
+            render_process = multiprocessing.Process(
+                target=render_worker, 
+                args=(save_path, FRAMERATE, render_queue, stop_worker) 
+            )
+            render_process.start()
+            print(f"[INFO] Concurrent rendering process started (PID: {render_process.pid}).")
+        else:
+            print("[INFO] Concurrent rendering disabled. Frames will be processed sequentially at the end.")
 
 
-        # 2. Start the Saving Worker Thread (Disk I/O)
+        # 2. Start the Saving Worker Thread (PASS NEW FLAG)
         saving_thread = threading.Thread(
             target=saving_worker,
-            args=(buffer, save_path, FRAMERATE, render_queue) 
+            args=(buffer, save_path, FRAMERATE, render_queue, CONCURRENT_RENDER) 
         )
         saving_thread.start()
         
-        # 3. Start the Acquisition Thread (Camera read & Buffer write)
+        # 3. Start the Acquisition Thread
         acquisition_thread = threading.Thread(
             target=acquire_images, 
             args=(buffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO)
@@ -147,16 +158,30 @@ def main(render_queue, stop_worker):
         stop_saving_worker.set() 
         saving_thread.join() # Wait for SAVING to flush buffer and finish I/O
         
-        # Shutdown Rendering PROCESS
-        print("[INFO] Waiting for render queue to empty...")
-        # Poll the queue size for multiprocessing.Queue cleanup
-        while not render_queue.empty():
-            print(f"[INFO] Render Queue size: {render_queue.qsize()}. Waiting...")
-            time.sleep(1) 
-        
-        # Signal Render PROCESS to stop and wait for it to exit
-        stop_worker.set() 
-        render_process.join() # Wait for RENDERING PROCESS to completely finish
+        # Shutdown Rendering PROCESS (CONDITIONAL SHUTDOWN)
+        chunk_paths = []
+        if CONCURRENT_RENDER and render_process:
+            print("[INFO] Waiting for render queue to empty...")
+            # Poll the queue size for multiprocessing.Queue cleanup
+            while not render_queue.empty():
+                print(f"[INFO] Render Queue size: {render_queue.qsize()}. Waiting...")
+                time.sleep(1) 
+            
+            # Signal Render PROCESS to stop and wait for it to exit
+            stop_worker.set() 
+            render_process.join() # Wait for RENDERING PROCESS to completely finish
+
+            # --- RETRIEVE CHUNK PATHS --- (Only if concurrent)
+            chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
+            if os.path.exists(chunk_list_file):
+                try:
+                    with open(chunk_list_file, 'r') as f:
+                        # Read paths, strip whitespace, and filter empty lines
+                        chunk_paths = [line.strip() for line in f if line.strip()] 
+                    os.remove(chunk_list_file) # Clean up the list file after reading
+                except Exception as e:
+                    print(f"[WARNING] Could not read or delete chunk list file: {e}")
+        # If not CONCURRENT_RENDER, chunk_paths remains an empty list [] for sequential render mode
 
         # --- VIDEO GENERATION START ---
 
@@ -165,21 +190,11 @@ def main(render_queue, stop_worker):
             print("[INFO] Video rendering skipped due to frame rate discrepancy.")
             sys.exit()
 
-        # --- RETRIEVE CHUNK PATHS --- (Read from file written by render_worker PROCESS)
-        chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
-        chunk_paths = []
-        if os.path.exists(chunk_list_file):
-            try:
-                with open(chunk_list_file, 'r') as f:
-                    chunk_paths = [line.strip() for line in f if line.strip()] 
-                os.remove(chunk_list_file) 
-            except Exception as e:
-                print(f"[WARNING] Could not read or delete chunk list file: {e}")
-
-        # Run ffmpeg to generate video (pass the list of chunks)
+        # Run ffmpeg to generate video (pass the list of chunks or empty list for sequential mode)
         video_name = os.path.basename(save_path) + ".mp4"
         output_path = os.path.join(os.path.dirname(save_path), video_name)
         
+        # create_video_from_images handles both chunk-based (if paths provided) and sequential modes
         video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths)
         
     except Exception as e:
@@ -203,7 +218,7 @@ def main(render_queue, stop_worker):
 
 if __name__ == "__main__":
     # Initialize the multiprocessing objects ONLY when the script is run directly
-    multiprocessing.freeze_support() 
+    multiprocessing.freeze_support() # Recommended for Windows/executable distribution
     
     manager = multiprocessing.Manager()
     render_queue = manager.Queue()
