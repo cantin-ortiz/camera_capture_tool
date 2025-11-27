@@ -6,8 +6,8 @@ import threading
 import time
 import os
 import PySpin
-import cv2  # Needed here for the final cv2.destroyAllWindows() cleanup
-import numpy as np # Needed for array manipulation
+import cv2 
+import numpy as np 
 
 # Import all camera/acquisition functions from the camera module
 from camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected
@@ -15,7 +15,7 @@ from camera_control import set_line_source, acquire_images, stop_recording, fs_e
 from processing_utils import get_save_path, create_video_from_images, cleanup_frames
 # Import worker components for concurrent rendering
 from render_worker import render_worker, stop_worker, render_queue
-# Import the new buffer class (not instance)
+# Import the new buffer class
 from buffer_control import CircularBuffer 
 # Import the new saving worker, and its stop event
 from saving_worker import saving_worker, stop_saving_worker
@@ -98,6 +98,7 @@ def main():
     # ----------------------------------------
     
     # --- Start Recording Block ---
+    video_success = False # Initialize success flag
     try:
         input(">>> Press Enter to start recording (strobe ON)...")
 
@@ -152,6 +153,31 @@ def main():
         stop_worker.set() 
         render_thread.join() # Wait for RENDERING to completely finish
 
+        # --- VIDEO GENERATION START ---
+
+        # Check for fatal frame rate error before rendering
+        if fs_error_detected.is_set():
+            print("[INFO] Video rendering skipped due to frame rate discrepancy.")
+            sys.exit()
+
+        # --- RETRIEVE CHUNK PATHS --- (Read from file written by render_worker)
+        chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
+        chunk_paths = []
+        if os.path.exists(chunk_list_file):
+            try:
+                with open(chunk_list_file, 'r') as f:
+                    chunk_paths = [line.strip() for line in f if line.strip()] 
+                os.remove(chunk_list_file) 
+            except Exception as e:
+                print(f"[WARNING] Could not read or delete chunk list file: {e}")
+
+        # Run ffmpeg to generate video (pass the list of chunks)
+        video_name = os.path.basename(save_path) + ".mp4"
+        output_path = os.path.join(os.path.dirname(save_path), video_name)
+        
+        # PASS CHUNK PATHS TO THE RENDERER AND CAPTURE SUCCESS
+        video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths)
+        
     except Exception as e:
         print(f"[FATAL] {e}")
 
@@ -167,31 +193,9 @@ def main():
         except Exception as cleanup_error:
             print(f"[CLEANUP ERROR] {cleanup_error}")
     
-    # Check for fatal frame rate error before rendering
-    if fs_error_detected.is_set():
-        print("[INFO] Video rendering skipped due to frame rate discrepancy.")
-        sys.exit()
-
-    # --- RETRIEVE CHUNK PATHS --- (Read from file written by render_worker)
-    chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
-    chunk_paths = []
-    if os.path.exists(chunk_list_file):
-        try:
-            with open(chunk_list_file, 'r') as f:
-                chunk_paths = [line.strip() for line in f if line.strip()] 
-            os.remove(chunk_list_file) 
-        except Exception as e:
-            print(f"[WARNING] Could not read or delete chunk list file: {e}")
-
-    # Run ffmpeg to generate video (pass the list of chunks)
-    video_name = os.path.basename(save_path) + ".mp4"
-    output_path = os.path.join(os.path.dirname(save_path), video_name)
-    
-    # PASS CHUNK PATHS TO THE RENDERER
-    create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths)
-
     # Delete frames and chunks if required
-    cleanup_frames(save_path, GENERATE_VIDEO, DELETE_FRAMES)
+    # PASS THE VIDEO SUCCESS FLAG
+    cleanup_frames(save_path, DELETE_FRAMES, video_success)
 
 
 if __name__ == "__main__":
