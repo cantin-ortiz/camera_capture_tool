@@ -13,8 +13,8 @@ import multiprocessing
 from config import CHUNK_DURATION_S 
 from buffer_control import CircularBuffer 
 # Import all camera/acquisition functions from the camera module
-# >>> UPDATED IMPORT: Added quit_program_event <<<
-from camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected, run_live_preview, quit_program_event 
+# NOTE: Removed display_worker import, as it was removed in previous step
+from camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected, run_live_preview, quit_program_event
 # Import all file/processing utilities from the processing module
 from processing_utils import get_save_path, create_video_from_images, cleanup_frames
 # Import worker components
@@ -24,31 +24,78 @@ from saving_worker import saving_worker, stop_saving_worker
 # Define the dynamic default path: ~/Documents/flea3_recordings
 DEFAULT_SAVE_PATH = os.path.join(os.path.expanduser('~'), "Documents", "flea3_recordings")
 
+# Define the common window name
+WINDOW_NAME = 'Live Camera Feed'
+
 # --- GLOBAL MULTIPROCESSING COMPONENTS ---\
 manager = None
 render_queue = None
 stop_worker = None
 # --- END GLOBAL MULTIPROCESSING COMPONENTS ---\
 
-# >>> MODIFIED CONSOLE STOP LISTENER FUNCTION <<<
-def console_stop_listener():
-    """Waits for console input during acquisition. Sets stop_recording event (ENTER) or quits ('q')."""
+# --- NEW GLOBAL EVENT for START ---
+start_recording_event = threading.Event()
+
+# ____________________________________________________________________________
+#
+# UNIFIED CONSOLE LISTENER BLOCK (Handles Start and Stop)
+# ____________________________________________________________________________
+def console_listener_unified():
+    """
+    Handles console input for both the START (pre-acquisition) and STOP (during acquisition) phases.
+    This runs in a single background thread.
+    """
+    
+    # --- STAGE 1: WAIT FOR START ---
+    print("\n[INFO] Press ENTER in the console to START recording, or 'q' + ENTER to quit.")
     try:
-        # Read the console input (blocks until ENTER)
         user_input = input()
         
         if user_input.lower().strip() == 'q':
-            print("\n[INFO] Console 'q' received. Exiting program.")
-            # Set the quit event to stop acquisition and signal main thread to exit
+            print("\n[INFO] Console 'q' received during wait. Exiting program.")
             quit_program_event.set()
+            return
         else:
-            # Assume any other input (like just ENTER, or ENTER with other text) means STOP RECORDING
-            stop_recording.set()
-            print("\n[INFO] Console 'ENTER' received. Stopping acquisition...")
+            # Signal the main thread to proceed with acquisition setup
+            start_recording_event.set()
+            print("\n[INFO] Console 'ENTER' received. Starting acquisition...")
             
     except EOFError:
-        pass # Handle process termination
+        # Handles case where standard input is closed prematurely
+        quit_program_event.set()
+        return
+    except Exception as e:
+        print(f"[FATAL] Console input error during START wait: {e}")
+        quit_program_event.set()
+        return
 
+    # --- STAGE 2: WAIT FOR STOP (Blocks here until acquisition is finished or user stops) ---
+    print("[INFO] Acquisition is running. Press ENTER in the console to STOP recording, or 'q' + ENTER to quit.")
+    
+    # This loop ensures the thread can check the quit_program_event if it was set externally 
+    while not quit_program_event.is_set() and not stop_recording.is_set():
+        try:
+            if quit_program_event.is_set() or stop_recording.is_set():
+                break
+                
+            # Block until ENTER is pressed for STOP or 'q' for QUIT
+            user_input = input()
+            
+            if user_input.lower().strip() == 'q':
+                print("\n[INFO] Console 'q' received during acquisition. Exiting program.")
+                quit_program_event.set()
+            else:
+                # Assume any other input (like just ENTER) means STOP RECORDING
+                stop_recording.set()
+                print("\n[INFO] Console 'ENTER' received. Signaling stop...")
+                
+        except EOFError:
+            # Standard input closed, exit gracefully
+            quit_program_event.set()
+        except Exception as e:
+            print(f"[FATAL] Console input error during STOP wait: {e}")
+            quit_program_event.set()
+        break # Exit loop after handling input or error
 
 # ____________________________________________________________________________
 #
@@ -82,6 +129,13 @@ def record_video(
     LIVE_VIDEO,
     SKIP_CLEANUP):
     
+    # --- Shared State for Display (Accessed by acquisition thread and main thread) ---
+    latest_frame_data = [None] # Shared list to hold the latest frame (numpy array)
+    latest_frame_lock = threading.Lock() # Lock to protect the shared data
+    # NEW FLAG: Controls the live display loop, independent of recording stop
+    live_display_active = [LIVE_VIDEO] 
+    # ---------------------------------------------------------------------
+    
     # ____________________________________________________________________________
     #
     # INITIAL SETUP & CAMERA ACQUISITION
@@ -108,19 +162,10 @@ def record_video(
         
         # --- Configure Camera Settings ---
         # Frame rate setting is controlled externally (e.g., SpinView).
-        # We only ensure it's enabled if required by the camera model.
-        # This line is kept as a minimal requirement for some PySpin cams, but the value is NOT set.
         try:
              cam.AcquisitionFrameRateEnable.SetValue(True)
         except PySpin.SpinnakerException:
-             # This node may not be writable/available on all cameras, so we pass
              pass 
-
-        # REMOVED: FrameRate setting: cam.AcquisitionFrameRate.SetValue(FRAMERATE)
-        # REMOVED: Exposure Mode setting
-        # REMOVED: Exposure Auto setting
-        # REMOVED: Exposure Time setting
-        # The camera's current exposure and framerate settings will be used.
 
     except PySpin.SpinnakerException as ex:
         print(f"[ERROR] Camera initialization failed: {ex}")
@@ -153,25 +198,37 @@ def record_video(
 
     # ____________________________________________________________________________
     #
-    # LIVE PREVIEW PHASE
+    # LIVE PREVIEW & START WAIT PHASE
     # ____________________________________________________________________________
     try:
-        # Run the preview loop. This blocks until the user presses ENTER or 'q' in the console.
-        run_live_preview(cam, LIVE_VIDEO)
+        # Start the UNIFIED console listener thread immediately
+        console_thread = threading.Thread(target=console_listener_unified, daemon=True)
+        console_thread.start()
+        
+        # 1. Start live preview (Acquisition and display starts immediately if LIVE_VIDEO=True)
+        run_live_preview(cam, LIVE_VIDEO, start_recording_event)
+        
+        # 2. Block the main thread until the user signals START or QUIT.
+        while not start_recording_event.is_set() and not quit_program_event.is_set():
+             time.sleep(0.1)
+        
+        # Check if quit was requested
+        if quit_program_event.is_set():
+            raise SystemExit()
         
     except SystemExit:
         # User pressed 'q' in the console or closed the window manually. Clean exit.
-        print("[INFO] Exiting program as requested during preview.")
+        print("[INFO] Exiting program as requested during start phase.")
         sys.exit()
     except Exception as e:
-        print(f"[FATAL] Unhandled error during preview phase: {e}")
+        print(f"[FATAL] Unhandled error during preview/start phase: {e}")
         sys.exit()
 
     # ____________________________________________________________________________
     #
-    # RECORDING PHASE (Execution proceeds here immediately after preview returns)
+    # RECORDING PHASE (Execution proceeds here immediately after start_recording_event is set)
     # ____________________________________________________________________________
-
+    
     # --- Start Saving Worker (Consumer Thread) ---
     saving_thread = threading.Thread(
         target=saving_worker, 
@@ -194,27 +251,93 @@ def record_video(
     # --- Start Acquisition Thread (Producer) ---
     acquisition_thread = threading.Thread(
         target=acquire_images, 
-        args=(image_buffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO)
+        # Pass shared variables for the main thread display loop
+        args=(image_buffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock) 
     )
     acquisition_thread.start()
-    print("[INFO] Acquisition thread started.")
-
-    # --- START CONSOLE STOP LISTENER ---
-    # This thread waits for ENTER (to stop) or 'q' (to quit) in the console.
-    print("[INFO] Press ENTER in the console to stop the recording, or 'q' + ENTER to quit.")
-    stop_listener_thread = threading.Thread(target=console_stop_listener, daemon=True)
-    stop_listener_thread.start()
     
     # ____________________________________________________________________________
     #
-    # MAIN THREAD WAITS FOR ACQUISITION TO FINISH
+    # MAIN THREAD GUI LOOP (Handles live display, independent of acquisition)
+    # ____________________________________________________________________________
+    
+    # LIVE_VIDEO is the command line flag. live_display_active is the runtime control.
+    if LIVE_VIDEO:
+        print("[INFO] Main thread starting dedicated display loop (15 FPS update).")
+        
+        # Frame rate control for the display (e.g., ~15 FPS display)
+        DISPLAY_PERIOD_S = 1.0 / 15.0 
+        
+        # Loop continues as long as acquisition is running AND the display is active
+        while not stop_recording.is_set() and not quit_program_event.is_set() and live_display_active[0]:
+            start_time = time.perf_counter()
+
+            # 1. Acquire the latest frame data
+            frame_to_display = None
+            with latest_frame_lock:
+                if latest_frame_data[0] is not None:
+                    frame_to_display = latest_frame_data[0] 
+
+            # 2. Display the frame if available
+            if frame_to_display is not None:
+                try:
+                    cv2.imshow(WINDOW_NAME, frame_to_display)
+                    
+                    # CRITICAL: cv2.waitKey(1) MUST be called from the main thread
+                    cv2.waitKey(1) 
+                    
+                    # Check if the window was closed manually by the user
+                    if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
+                        print("\n[INFO] Live window closed manually. Continuing recording without live display.")
+                        # --- MODIFIED: ONLY SET THE DISPLAY FLAG TO FALSE ---
+                        live_display_active[0] = False
+                        break # Exit the display loop, but not the recording loop
+
+                except Exception as e:
+                    # Catch OpenCV errors that might occur during display
+                    print(f"\n[ERROR] Main thread display error: {e}. Disabling live display.")
+                    live_display_active[0] = False
+                    break
+
+            # 3. Sleep to control the display rate
+            elapsed = time.perf_counter() - start_time
+            sleep_time = DISPLAY_PERIOD_S - elapsed
+            if sleep_time > 0:
+                time.sleep(sleep_time)
+                
+        # If the display was active but exited due to recording stop, close the window cleanly
+        if LIVE_VIDEO and live_display_active[0] == False: # Only run if it was active and now is off
+             try:
+                 cv2.destroyWindow(WINDOW_NAME)
+                 print("[INFO] Closed live display window.")
+             except Exception:
+                 pass # Ignore if window already closed/not created
+
+        # If the display loop was running, the main thread must wait for the acquisition to finish.
+        if LIVE_VIDEO:
+             print("[INFO] Main thread is now waiting for acquisition to finish...")
+
+    # If LIVE_VIDEO was False, the main thread was free and now needs to wait for the acquisition to finish.
+    # If LIVE_VIDEO was True, the display loop just finished, and the main thread will continue to wait below.
+    
+    # ____________________________________________________________________________
+    #
+    # FINAL JOIN & POST-ACQUISITION PROCESSING (This block is now the centralized wait)
     # ____________________________________________________________________________
     
     try:
-        # Wait for the acquisition thread to finish (either by duration or console ENTER/q)
-        acquisition_thread.join()
+        # Wait for the acquisition thread to finish (either by duration, console stop, or error)
+        if acquisition_thread.is_alive():
+             print("[INFO] Waiting for acquisition thread to close...")
+             acquisition_thread.join(timeout=None) # Wait indefinitely or until thread terminates
+             
+        # Wait for the console listener to finish (it should have been signaled by stop_recording)
+        if console_thread.is_alive():
+            print("[INFO] Waiting for console listener to close...")
+            # A short timeout is okay here, as it should close quickly after stop_recording is set.
+            console_thread.join(timeout=2) 
         
-        # >>> NEW CHECK: Exit immediately if the quit signal was set during acquisition <<<
+        # Check if quit was requested
         if quit_program_event.is_set():
             # Stop recording has been signaled by 'q' in the console. Jump to cleanup.
             raise SystemExit()
@@ -252,15 +375,17 @@ def record_video(
 
         # --- RETRIEVE CHUNK PATHS ---
         chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
-        chunk_paths = []
+        # Renamed variable to reflect it holds FFmpeg-formatted lines
+        chunk_paths_ff = [] 
         if os.path.exists(chunk_list_file):
             try:
                 with open(chunk_list_file, 'r') as f:
-                    # Read paths, strip whitespace, and filter empty lines
-                    # The format is 'file 'path'\n'
-                    chunk_paths = [line.strip().lstrip("file '").rstrip("'") for line in f if line.strip()] 
+                    # FIX: Read the lines *AS IS* (they are already in 'file 'path'\n' format)
+                    # The list now holds the correct FFmpeg formatted lines.
+                    chunk_paths_ff = [line for line in f if line.strip()] 
             except Exception as e:
                 print(f"[WARNING] Could not read chunk list file: {e}")
+
 
         # Run ffmpeg to generate video (pass the list of chunks or empty list for sequential mode)
         video_name = os.path.basename(save_path) + ".mp4"
@@ -268,7 +393,8 @@ def record_video(
         
         # create_video_from_images handles both chunk-based (if paths provided) and sequential modes
         if GENERATE_VIDEO and not fs_error_detected.is_set():
-            video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths)
+            # PASS THE FFmpeg FORMATTED LINES
+            video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths_ff)
         else:
             # Set video_success flag appropriately if rendering was skipped
             video_success = True # Frames were successfully saved, even if video wasn't made
@@ -282,6 +408,15 @@ def record_video(
 
     # --- Camera Cleanup Block ---\
     finally:
+        # --- Centralized OpenCV Window Cleanup ---
+        # The window was destroyed in the main loop, but use destroyAllWindows for safety
+        try:
+            if LIVE_VIDEO:
+                cv2.destroyAllWindows()
+                print("[INFO] Final OpenCV window cleanup.")
+        except Exception:
+             pass
+        
         if not SKIP_CLEANUP:
             try:
                 cam.DeInit()

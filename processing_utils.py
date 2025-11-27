@@ -3,6 +3,7 @@
 import os
 import subprocess
 import shutil
+import glob # Required for sequential mode
 from datetime import datetime
 
 def get_save_path(base_dir):
@@ -28,24 +29,24 @@ def render_chunk(image_folder, chunk_num, start_frame, n_frames, framerate):
         'ffmpeg',
         '-y', 
         
-        # --- INPUT OPTIONS (MUST come before -i) ---
+        # --- INPUT OPTIONS (MUST come before -i) ---\
         '-framerate', str(framerate),
         '-start_number', str(start_frame),  # Start index
         
-        # --- INPUT FILE ---
+        # --- INPUT FILE ---\
         '-i', input_pattern,
         
-        # --- OUTPUT CONSTRAINTS (MUST come after -i, before encoding options) ---
+        # --- OUTPUT CONSTRAINTS (MUST come after -i, before encoding options) ---\
         '-vframes', str(n_frames),          # Number of frames to process
         
-        # --- OUTPUT ENCODING PARAMETERS ---
+        # --- OUTPUT ENCODING PARAMETERS ---\
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
         '-tune', 'zerolatency',
         '-crf', '23', # Constant Rate Factor: lower is higher quality/larger file
         '-pix_fmt', 'yuv420p',
         
-        # Output container settings for concatenation:
+        # Output container settings for concatenation:\
         '-f', 'mpegts',
         chunk_file
     ]
@@ -56,26 +57,26 @@ def render_chunk(image_folder, chunk_num, start_frame, n_frames, framerate):
         return chunk_file
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] FFmpeg chunk rendering failed for chunk {chunk_num}. Exit code {e.returncode}.")
-        # --- DEBUG OUTPUT ---
+        # --- DEBUG OUTPUT ---\
         print("\n--- FFmpeg Stderr Output START ---")
         print(e.stderr)
         print("--- FFmpeg Stderr Output END ---\n")
-        # --------------------
+        # --------------------\
         return None
     except FileNotFoundError:
         print(f"[ERROR] FFmpeg command not found. Cannot render chunk {chunk_num}.")
         return None
 
-def create_video_from_images(image_folder, output_file, framerate, generate_video, chunk_paths):
+def create_video_from_images(image_folder, output_file, framerate, generate_video, chunk_paths_ff):
     """
-    If chunk_paths is provided, concatenates temporary chunk files (concurrent mode).
-    If chunk_paths is empty, renders the video sequentially from all frames (sequential mode).
+    If chunk_paths_ff is provided, concatenates temporary chunk files (concurrent mode).
+    If chunk_paths_ff is empty, renders the video sequentially from all frames (sequential mode).
     """
     if not generate_video:
         print("[INFO] Video generation skipped.")
         return False
         
-    if not chunk_paths:
+    if not chunk_paths_ff:
         # --- SEQUENTIAL RENDERING MODE ---
         print("[INFO] No chunk paths provided. Rendering video sequentially from all frames...")
         
@@ -120,10 +121,12 @@ def create_video_from_images(image_folder, output_file, framerate, generate_vide
     list_file_path = os.path.join(image_folder, "concat_list.txt")
     
     # Write the sorted chunk paths (which are already in FFmpeg format) to the temporary list file
+    # Renamed variable to chunk_paths_ff
     with open(list_file_path, "w") as f:
-        # chunk_paths now contains lines like: file 'path/to/chunk_001.ts'
-        for line in chunk_paths:
-            f.write(line + "\n") 
+        # chunk_paths_ff now contains lines like: file 'path/to/chunk_001.ts'
+        for line in chunk_paths_ff:
+            # Robustly write the line, stripping whitespace and ensuring a single newline
+            f.write(line.strip() + "\n") 
 
     # 2. Concatenate all chunks (Transport Stream format)
     cmd = [
@@ -133,6 +136,7 @@ def create_video_from_images(image_folder, output_file, framerate, generate_vide
         '-safe', '0',   # Allows absolute paths in the list file
         '-i', list_file_path,
         '-c', 'copy',   # Copies the stream without re-encoding (very fast)
+        '-map', '0:v:0', # Map only the first video stream (added for robustness)
         output_file
     ]
     

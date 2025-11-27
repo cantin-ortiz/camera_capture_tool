@@ -7,6 +7,7 @@ import threading
 import time
 import sys
 import queue
+import numpy as np # Explicitly imported for np_image.copy()
 # Import the buffer class for type hinting
 from buffer_control import CircularBuffer 
 # Import the chunk duration from the central config
@@ -15,34 +16,11 @@ from config import CHUNK_DURATION_S
 # Global events for thread communication
 stop_recording = threading.Event()
 fs_error_detected = threading.Event()
-# Event to signal recording start from the console listener
-start_recording_event = threading.Event() 
-# >>> NEW: Event to signal program exit across all threads <<<
+# Event to signal program exit across all threads
 quit_program_event = threading.Event() 
 
-
-def console_listener():
-    """
-    A separate thread function that blocks on console input during the preview phase.
-    Sets the start_recording_event when ENTER is pressed in the console
-    or sets the quit_program_event if 'q' is pressed.
-    """
-    try:
-        # The 'input()' call blocks the thread until ENTER is pressed.
-        # We read the input to check for 'q'
-        user_input = input() 
-        
-        if user_input.lower().strip() == 'q':
-            print("\n[INFO] Console 'q' received. Exiting program.")
-            # Set the quit event for the main thread to check
-            quit_program_event.set() 
-        else:
-            # Assume any other input (like Enter, or Enter with text) means START
-            start_recording_event.set()
-            print("\n[INFO] Console 'ENTER' received. Stopping preview...")
-            
-    except EOFError:
-        pass # Handles case where standard input is closed (e.g., pipeline termination)
+# Define the common window name
+WINDOW_NAME = 'Live Camera Feed'
 
 
 def set_line_source(cam, line_name, source_name):
@@ -71,33 +49,25 @@ def set_line_source(cam, line_name, source_name):
     print(f"[INFO] Set {line_name} LineSource to {source_name}")
 
 
-def run_live_preview(cam, LIVE_VIDEO):
+def run_live_preview(cam, LIVE_VIDEO, start_recording_event):
     """
-    Runs live video preview until the user presses ENTER in the console 
-    or closes the window (which quits the program). Console input is the only way to start recording.
+    Runs live video preview until the start_recording_event is set in the console 
+    or the window is manually closed (which triggers a full program exit in this phase).
     """
     if not LIVE_VIDEO:
         return
         
-    # The listener thread handles the 'q' prompt
-    print("[INFO] Starting live preview. Press ENTER in the console to start recording, or 'q' + ENTER to quit.") 
-
     # 1. Start Acquisition for Preview
     nodemap = cam.GetNodeMap()
     acquisition_mode = PySpin.CEnumerationPtr(nodemap.GetNode("AcquisitionMode"))
     acquisition_mode.SetIntValue(acquisition_mode.GetEntryByName("Continuous").GetValue())
 
     cam.BeginAcquisition()
-    WINDOW_NAME = 'Live Camera Feed'
     
     # Ensure the window is created outside the loop
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
     
     preview_active = True
-    
-    # Start console listener thread
-    input_thread = threading.Thread(target=console_listener, daemon=True)
-    input_thread.start()
     
     while preview_active:
         try:
@@ -106,9 +76,8 @@ def run_live_preview(cam, LIVE_VIDEO):
                 preview_active = False # Break the preview loop
                 continue
 
-            # >>> NEW CHECK: Check for quit event <<<
+            # Check for quit event
             if quit_program_event.is_set():
-                # Quit requested from console. Raise SystemExit in the main thread.
                 raise SystemExit()
                 
             # READ CAMERA (Time-critical operation)
@@ -125,14 +94,13 @@ def run_live_preview(cam, LIVE_VIDEO):
             # LIVE VIDEO PREVIEW
             cv2.imshow(WINDOW_NAME, np_image)
             
-            # Only call waitKey(1) to process window events (like manual close), 
-            # but IGNORE the returned key. No keypress on the video window should have an effect.
+            # Only call waitKey(1) to process window events (like manual close)
             cv2.waitKey(1) 
             
             # Check if the window was closed manually by the user
             if cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE) < 1:
-                print("\n[INFO] Live window closed manually. Exiting program as control is console-only.")
-                # Closing the window is now treated as an exit command.
+                print("\n[INFO] Live window closed manually. Exiting program.")
+                # Closing the window is now treated as an exit command in the PREVIEW phase.
                 quit_program_event.set()
                 raise SystemExit() 
             
@@ -147,20 +115,21 @@ def run_live_preview(cam, LIVE_VIDEO):
 
     # 2. Stop Acquisition after Preview
     try:
-        cam.EndAcquisition()
+        # Note: Acquisition is stopped here. It will be restarted in acquire_images.
+        cam.EndAcquisition() 
     except PySpin.SpinnakerException:
         print("[WARNING] Could not end preview acquisition cleanly.")
         
-    # Clean up the windows created by this function
-    cv2.destroyAllWindows()
-    
-    # Reset the event for the next run (if needed, though the script usually exits)
-    start_recording_event.clear()
+    # The window remains open for the main thread's display loop to take over.
 
 
-def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO):
+# Removed display_worker function.
+
+def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock):
     """
-    Continuously acquires images and writes them to the in-memory CircularBuffer.
+    Continuously acquires images and writes them to the in-memory CircularBuffer and 
+    the latest_frame_data for the main thread display loop.
+    The display logic (cv2.imshow) is REMOVED from this time-critical function.
     """
     global stop_recording
     nodemap = cam.GetNodeMap()
@@ -174,8 +143,7 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
     t_set_line_exposure = time.perf_counter()
     cam.BeginAcquisition()
     # Console listener in main_recorder.py handles the stop
-    print("[INFO] Started data acquisition. Press ENTER in the console to stop recording, or 'q' + ENTER to quit.")
-
+    
     if DURATION is not None:
         print(f"[INFO] Capture will stop automatically after {DURATION} s")
     
@@ -200,14 +168,16 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
                 image_result.Release()
                 continue
 
-            np_image = image_result.GetNDArray()
+            # This is a critical copy of the image data for processing/saving
+            np_image = image_result.GetNDArray() 
             
-            # LIVE VIDEO PREVIEW
+            # --- UPDATE SHARED FRAME DATA FOR MAIN THREAD DISPLAY ---
             if LIVE_VIDEO:
-                cv2.imshow('Live Camera Feed', np_image)
-                # Keep cv2.waitKey(1) to process window events, but ignore keypresses
-                cv2.waitKey(1)
-
+                # Update the shared variable with a STABLE COPY of the frame
+                # This prevents memory racing with the camera's internal buffer.
+                with latest_frame_lock:
+                    latest_frame_data[0] = np_image.copy() 
+            
             # 2. WRITE TO BUFFER (FAST, RAM operation)
             current_frame_index = buffer.put(np_image) 
             
@@ -227,6 +197,10 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
             print(f"\n[ERROR] OpenCV error in acquisition: {e}")
             stop_recording.set()
             break
+        except SystemExit:
+            # Exit was requested from a worker
+            stop_recording.set()
+            break
         except Exception as e:
             # Catch any other unexpected errors
             print(f"\n[FATAL] Unhandled error in acquisition: {e}")
@@ -242,9 +216,6 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
         t_set_line_constant = time.perf_counter()    
     except PySpin.SpinnakerException:
         print("[WARNING] Could not end acquisition cleanly")
-    finally:
-        # Ensure the OpenCV window is destroyed upon exit
-        cv2.destroyAllWindows()
 
 
     print("\n[INFO] Acquisition complete")
