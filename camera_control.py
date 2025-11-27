@@ -72,6 +72,14 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
     
     current_frame_index = 0
 
+    # --- Window status tracking ---
+    window_active = LIVE_VIDEO
+    WINDOW_NAME = 'Live Camera Feed'
+    if window_active:
+        # Explicitly create the window if we intend to show video
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
+    # ------------------------------
+
     while not stop_recording.is_set():
         try:
             # 1. READ CAMERA (Time-critical operation)
@@ -86,14 +94,34 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
 
             np_image = image_result.GetNDArray()
             
-            # LIVE VIDEO PREVIEW
-            if LIVE_VIDEO:
-                cv2.imshow('Live Camera Feed', np_image)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    print("\n[INFO] 'q' pressed. Stopping recording...")
-                    stop_recording.set()
+            # LIVE VIDEO PREVIEW (MODIFIED LOGIC)
+            if window_active:
+                
+                # CRITICAL: 1. Check window status first, before attempting to draw
+                window_status = cv2.getWindowProperty(WINDOW_NAME, cv2.WND_PROP_VISIBLE)
 
-            # 2. WRITE TO BUFFER (FAST, RAM operation)
+                if window_status < 1:
+                    # Window was closed by user. Disable future display attempts.
+                    window_active = False 
+                    cv2.destroyAllWindows() # Clean up all windows/handles reliably
+                    print("\n[INFO] Live window closed manually. Continuing acquisition without feedback.")
+                    # Jump to buffer writing for the current frame, skipping drawing
+                    # This prevents cv2.imshow from being called in subsequent loops
+                else:
+                    # 2. Only draw and check keypress if the window is still active
+                    cv2.imshow(WINDOW_NAME, np_image)
+                    
+                    # 3. Check for 'q' key press (and process OS events)
+                    if cv2.waitKey(1) & 0xFF == ord('q'):
+                        print("\n[INFO] 'q' pressed. Stopping recording...")
+                        stop_recording.set()
+                
+                # Check for clean exit
+                if stop_recording.is_set():
+                    image_result.Release()
+                    break
+
+            # 2. WRITE TO BUFFER (FAST, RAM operation) - This is outside the display check, so it's always fast.
             current_frame_index = buffer.put(np_image) 
             
             image_result.Release()
@@ -109,7 +137,13 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
             stop_recording.set()
             break
         except cv2.error as e:
+            # Catch OpenCV errors that might occur if the window was closed but the state is bad
             print(f"\n[ERROR] OpenCV error in acquisition: {e}")
+            stop_recording.set()
+            break
+        except Exception as e:
+            # Catch any other unexpected errors
+            print(f"\n[FATAL] Unhandled error in acquisition: {e}")
             stop_recording.set()
             break
 
@@ -122,6 +156,10 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
         t_set_line_constant = time.perf_counter()    
     except PySpin.SpinnakerException:
         print("[WARNING] Could not end acquisition cleanly")
+    finally:
+        # Final cleanup for the OpenCV window
+        cv2.destroyAllWindows()
+
 
     print("\n[INFO] Acquisition complete")
 
