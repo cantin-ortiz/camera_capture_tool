@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 
-from config import CHUNK_DURATION_S 
+from config import CHUNK_DURATION_S, JPEG_QUALITY
 
 # Global stop event for the saving worker
 stop_saving_worker = threading.Event()
@@ -40,17 +40,18 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
             
         # --- DISK I/O: SAVE FRAME ---
         filename = os.path.join(save_path, f"frame_{frame_index:07d}.jpg")
-        cv2.imwrite(filename, np_image) 
+        cv2.imwrite(filename, np_image, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
         
         # Update total frames saved for chunking calculation
         i = frame_index + 1 
         
         # Calculate lag: Total frames acquired minus total frames saved
         buffer_lag = buffer.total_frames_written - i
+        buffer_capacity = buffer.size
         if debug_mode:
             print(f"[SAVE WORKER] Saved frame {frame_index:07d} (Lag: {buffer_lag} frames).", end='\r')
         else:
-            print(f"Lag: {buffer_lag} frames", end='\r')
+            print(f"Lag: {buffer_lag}/{buffer_capacity} frames", end='\r')
 
         # --- CHUNK RENDERING TRIGGER (ADAPTIVE FLOW CONTROL) ---
         

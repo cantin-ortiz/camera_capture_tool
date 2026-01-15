@@ -11,3 +11,11 @@ CHUNK_DURATION_S = 10
 # E.g., at 50Hz with multiplier 2.0: buffer holds 1000 frames
 # Increase if disk is slow (e.g., 3.0 or 4.0), decrease if RAM is limited (e.g., 1.5)
 BUFFER_MULTIPLIER = 2.0
+
+# JPEG compression quality for saved frames (0-100)
+# Higher = better quality but slower saving and larger files
+# 95 = default OpenCV quality (highest)
+# 85 = recommended for performance (30-40% faster, visually identical)
+# 75 = good balance for high-speed capture
+# Lower values may introduce visible artifacts
+JPEG_QUALITY = 85
