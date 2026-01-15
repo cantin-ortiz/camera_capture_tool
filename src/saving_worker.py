@@ -3,9 +3,12 @@
 import threading
 import time
 import os
+import sys
 import cv2
 import numpy as np
 
+# Add parent directory to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import CHUNK_DURATION_S, JPEG_QUALITY
 
 # Global stop event for the saving worker

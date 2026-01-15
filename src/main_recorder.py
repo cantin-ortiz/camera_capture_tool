@@ -11,16 +11,19 @@ import cv2
 import numpy as np 
 # NEW IMPORT: For process-based concurrency
 import multiprocessing 
+
+# Add parent directory to path to import config
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER
-from buffer_control import CircularBuffer 
+from src.buffer_control import CircularBuffer 
 # Import all camera/acquisition functions from the camera module
 # NOTE: Removed display_worker import, as it was removed in previous step
-from camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected, run_live_preview, quit_program_event
+from src.camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected, run_live_preview, quit_program_event
 # Import all file/processing utilities from the processing module
-from processing_utils import get_save_path, create_video_from_images, cleanup_frames
+from src.processing_utils import get_save_path, create_video_from_images, cleanup_frames
 # Import worker components
-from render_worker import render_worker
-from saving_worker import saving_worker, stop_saving_worker
+from src.render_worker import render_worker
+from src.saving_worker import saving_worker, stop_saving_worker
 
 # Define the dynamic default path: ~/Documents/flea3_recordings
 DEFAULT_SAVE_PATH = os.path.join(os.path.expanduser('~'), "Documents", "flea3_recordings")

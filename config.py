@@ -2,6 +2,10 @@
 
 # --- GLOBAL SETTINGS ---
 
+# Virtual environment path (relative to project root)
+# Change this if you use a different virtual environment name or location
+VENV_PATH = "../env_camera"
+
 # Duration (in seconds) that defines the size of each video chunk.
 # E.g., at 50Hz, 10s = 500 frames per chunk.
 CHUNK_DURATION_S = 10

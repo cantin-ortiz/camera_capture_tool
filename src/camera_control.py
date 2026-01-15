@@ -9,8 +9,11 @@ import sys
 import queue
 import numpy as np # Explicitly imported for np_image.copy()
 # Import the buffer class for type hinting
-from buffer_control import CircularBuffer 
+from src.buffer_control import CircularBuffer 
 # Import the chunk duration from the central config
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from config import CHUNK_DURATION_S 
 
 # Windows API for console focus management
