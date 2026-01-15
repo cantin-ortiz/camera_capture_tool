@@ -365,39 +365,35 @@ def record_video(
         # VIDEO RENDERING & CLEANUP
         # ____________________________________________________________________________
 
-        if not GENERATE_VIDEO:
-            print("[INFO] Video generation skipped as requested.")
-            video_success = True # Consider frame saving a success
-        
         # Check for fatal frame rate error before rendering
         if fs_error_detected.is_set():
             print("[INFO] Video rendering skipped due to frame rate discrepancy.")
+            video_success = False  # Video rendering failed, keep frames
+        elif not GENERATE_VIDEO:
+            print("[INFO] Video generation skipped as requested.")
+            video_success = True # Consider frame saving a success
+        else:
+            # --- RETRIEVE CHUNK PATHS ---
+            chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
+            # Renamed variable to reflect it holds FFmpeg-formatted lines
+            chunk_paths_ff = [] 
+            if os.path.exists(chunk_list_file):
+                try:
+                    with open(chunk_list_file, 'r') as f:
+                        # FIX: Read the lines *AS IS* (they are already in 'file 'path'\n' format)
+                        # The list now holds the correct FFmpeg formatted lines.
+                        chunk_paths_ff = [line for line in f if line.strip()] 
+                except Exception as e:
+                    print(f"[WARNING] Could not read chunk list file: {e}")
 
-        # --- RETRIEVE CHUNK PATHS ---
-        chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
-        # Renamed variable to reflect it holds FFmpeg-formatted lines
-        chunk_paths_ff = [] 
-        if os.path.exists(chunk_list_file):
-            try:
-                with open(chunk_list_file, 'r') as f:
-                    # FIX: Read the lines *AS IS* (they are already in 'file 'path'\n' format)
-                    # The list now holds the correct FFmpeg formatted lines.
-                    chunk_paths_ff = [line for line in f if line.strip()] 
-            except Exception as e:
-                print(f"[WARNING] Could not read chunk list file: {e}")
 
-
-        # Run ffmpeg to generate video (pass the list of chunks or empty list for sequential mode)
-        video_name = os.path.basename(save_path) + ".mp4"
-        output_path = os.path.join(os.path.dirname(save_path), video_name)
-        
-        # create_video_from_images handles both chunk-based (if paths provided) and sequential modes
-        if GENERATE_VIDEO and not fs_error_detected.is_set():
+            # Run ffmpeg to generate video (pass the list of chunks or empty list for sequential mode)
+            video_name = os.path.basename(save_path) + ".mp4"
+            output_path = os.path.join(os.path.dirname(save_path), video_name)
+            
+            # create_video_from_images handles both chunk-based (if paths provided) and sequential modes
             # PASS THE FFmpeg FORMATTED LINES
             video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths_ff)
-        else:
-            # Set video_success flag appropriately if rendering was skipped
-            video_success = True # Frames were successfully saved, even if video wasn't made
         
     except SystemExit:
         # Exit was requested, ensuring video_success is False to prevent unwanted frame deletion
