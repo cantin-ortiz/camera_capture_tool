@@ -56,8 +56,8 @@ echo Virtual environment activated successfully.
 echo Starting camera recorder...
 echo.
 
-REM Run the main recorder script
-python src\main_recorder.py
+REM Run the main recorder script with all arguments passed to the batch file
+python src\main_recorder.py %*
 
 echo.
 echo ========================================
