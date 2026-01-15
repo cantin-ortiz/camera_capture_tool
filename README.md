@@ -88,6 +88,7 @@ Edit `config.py` to customize default settings:
 
 ```python
 # Virtual environment path (relative to project root)
+# Set to None to use system Python instead of a virtual environment
 VENV_PATH = "../env_camera"
 
 # Chunk duration for video encoding (seconds)

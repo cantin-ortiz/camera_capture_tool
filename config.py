@@ -4,7 +4,9 @@
 
 # Virtual environment path (relative to project root)
 # Change this if you use a different virtual environment name or location
+# Set to None to use system Python instead of a virtual environment
 VENV_PATH = "../env_camera"
+#VENV_PATH = None
 
 # Duration (in seconds) that defines the size of each video chunk.
 # E.g., at 50Hz, 10s = 500 frames per chunk.

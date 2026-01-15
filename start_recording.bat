@@ -11,9 +11,15 @@ REM Change to the script's directory
 cd /d "%~dp0"
 
 REM Use Python to read VENV_PATH from config.py
-for /f "delims=" %%i in ('python -c "import sys; sys.path.insert(0, '.'); from config import VENV_PATH; print(VENV_PATH)"') do set VENV_PATH=%%i
+for /f "delims=" %%i in ('python -c "import sys; sys.path.insert(0, '.'); from config import VENV_PATH; print(VENV_PATH if VENV_PATH is not None else 'NONE')"') do set VENV_PATH=%%i
 
-REM Check if we got a path
+REM Check if VENV_PATH is None or empty
+if "%VENV_PATH%"=="NONE" (
+    echo Using system Python ^(no virtual environment^)
+    echo.
+    goto :skip_venv
+)
+
 if "%VENV_PATH%"=="" (
     echo ERROR: Could not read VENV_PATH from config.py
     echo Using default: env_camera
@@ -53,6 +59,8 @@ if errorlevel 1 (
 )
 
 echo Virtual environment activated successfully.
+
+:skip_venv
 echo Starting camera recorder...
 echo.
 
