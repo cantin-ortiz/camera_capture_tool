@@ -142,7 +142,6 @@ parser.add_argument('--output', type=str, default='video', choices=['video', 'im
 parser.add_argument('--keep-frames', action='store_true', help='Keep raw image frames after video generation (default: delete)')
 parser.add_argument('--sequential', action='store_true', help='Use sequential rendering (no concurrent worker) (default: concurrent)')
 parser.add_argument('--nolive', action='store_true', help='Disable live video preview (default: live)')
-parser.add_argument('--no-cleanup', action='store_true', help='Skip the final cleanup and deletion of frames/video files on error (default: cleanup)')
 parser.add_argument('--debug', action='store_true', help='Enable debug mode with verbose worker output (default: quiet)')
 
 def record_video(
@@ -154,7 +153,6 @@ def record_video(
     DELETE_FRAMES,
     CONCURRENT_RENDER,
     LIVE_VIDEO,
-    SKIP_CLEANUP,
     DEBUG_MODE):
     
     # --- Shared State for Display (Accessed by acquisition thread and main thread) ---
@@ -452,18 +450,16 @@ def record_video(
         except Exception:
              pass
         
-        if not SKIP_CLEANUP:
-            try:
-                cam.DeInit()
-                del cam
-                cam_list.Clear()
-                system.ReleaseInstance()
-            except Exception as cleanup_error:
-                print(f"[CLEANUP ERROR] Camera hardware cleanup failed: {cleanup_error}")
+        try:
+            cam.DeInit()
+            del cam
+            cam_list.Clear()
+            system.ReleaseInstance()
+        except Exception as cleanup_error:
+            print(f"[CLEANUP ERROR] Camera hardware cleanup failed: {cleanup_error}")
     
         # Delete frames and chunks if required
-        final_delete_frames = DELETE_FRAMES and not SKIP_CLEANUP
-        cleanup_frames(save_path, final_delete_frames, video_success)
+        cleanup_frames(save_path, DELETE_FRAMES, video_success)
         
         # If quit was requested, force exit to terminate daemon threads
         if quit_program_event.is_set():
@@ -494,7 +490,6 @@ if __name__ == "__main__":
     DELETE_FRAMES = not args.keep_frames
     CONCURRENT_RENDER = not args.sequential
     LIVE_VIDEO = not args.nolive
-    SKIP_CLEANUP = args.no_cleanup
     DEBUG_MODE = args.debug
     
     # --- START RECORDING ---
@@ -507,5 +502,4 @@ if __name__ == "__main__":
         DELETE_FRAMES, 
         CONCURRENT_RENDER, 
         LIVE_VIDEO,
-        SKIP_CLEANUP,
         DEBUG_MODE)
