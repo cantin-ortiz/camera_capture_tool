@@ -55,16 +55,13 @@ if errorlevel 1 (
 echo Virtual environment activated successfully.
 echo Starting camera recorder...
 echo.
-echo Press Ctrl+C at any time to stop recording gracefully.
-echo.
 
 REM Run the main recorder script
 python src\main_recorder.py
 
-REM Deactivate virtual environment
-call "%VENV_PATH%\Scripts\deactivate.bat"
-
 echo.
 echo ========================================
-echo Program ended. Press any key to close.
-pause >nul
+echo Recording complete!
+echo Press any key to exit...
+echo ========================================
+pause
