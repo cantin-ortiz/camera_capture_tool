@@ -372,6 +372,7 @@ def record_video(
         # Check for fatal frame rate error before rendering
         if fs_error_detected.is_set():
             print("[INFO] Video rendering skipped due to frame rate discrepancy.")
+            video_success = False # Prevent frame deletion when video wasn't rendered
 
         # --- RETRIEVE CHUNK PATHS ---
         chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
@@ -395,9 +396,12 @@ def record_video(
         if GENERATE_VIDEO and not fs_error_detected.is_set():
             # PASS THE FFmpeg FORMATTED LINES
             video_success = create_video_from_images(save_path, output_path, FRAMERATE, GENERATE_VIDEO, chunk_paths_ff)
+        elif fs_error_detected.is_set():
+            # Framerate error: frames saved but video not rendered
+            video_success = False
         else:
-            # Set video_success flag appropriately if rendering was skipped
-            video_success = True # Frames were successfully saved, even if video wasn't made
+            # Video generation was disabled by user, but frames were successfully saved
+            video_success = True
         
     except SystemExit:
         # Exit was requested, ensuring video_success is False to prevent unwanted frame deletion
