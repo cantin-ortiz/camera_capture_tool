@@ -10,7 +10,7 @@ import cv2
 import numpy as np 
 # NEW IMPORT: For process-based concurrency
 import multiprocessing 
-from config import CHUNK_DURATION_S 
+from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER
 from buffer_control import CircularBuffer 
 # Import all camera/acquisition functions from the camera module
 # NOTE: Removed display_worker import, as it was removed in previous step
@@ -192,11 +192,11 @@ def record_video(
     # Global objects are initialized in __main__
     global manager, render_queue, stop_worker
     
-    # Create the thread-safe circular buffer (size: 2 * framerate * chunk_duration_s, e.g. 2*50*10 = 1000 frames)
+    # Create the thread-safe circular buffer (size: buffer_multiplier * framerate * chunk_duration_s, e.g. 2*50*10 = 1000 frames)
     # The size is dynamically calculated from the config file and command line framerate
-    BUFFER_SIZE = 2 * FRAMERATE * CHUNK_DURATION_S
+    BUFFER_SIZE = int(BUFFER_MULTIPLIER * FRAMERATE * CHUNK_DURATION_S)
     image_buffer = CircularBuffer(BUFFER_SIZE)
-    print(f"[INFO] Circular buffer created with size {BUFFER_SIZE} frames.")
+    print(f"[INFO] Circular buffer created with size {BUFFER_SIZE} frames (multiplier: {BUFFER_MULTIPLIER:.1f}).")
 
     # ____________________________________________________________________________
     #
