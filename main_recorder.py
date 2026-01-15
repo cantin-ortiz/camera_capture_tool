@@ -368,7 +368,7 @@ def record_video(
         # Check for fatal frame rate error before rendering
         if fs_error_detected.is_set():
             print("[INFO] Video rendering skipped due to frame rate discrepancy.")
-            video_success = False  # Video rendering failed, keep frames
+            video_success = False  # Frame rate error detected, keep frames
         elif not GENERATE_VIDEO:
             print("[INFO] Video generation skipped as requested.")
             video_success = True # Consider frame saving a success
