@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import os
+import signal
 import PySpin
 import cv2  
 import numpy as np 
@@ -32,9 +33,26 @@ manager = None
 render_queue = None
 stop_worker = None
 # --- END GLOBAL MULTIPROCESSING COMPONENTS ---\
-
 # --- NEW GLOBAL EVENT for START ---
 start_recording_event = threading.Event()
+
+# ____________________________________________________________________________
+#
+# SIGNAL HANDLER FOR CTRL+C
+# ____________________________________________________________________________
+def signal_handler(sig, frame):
+    """
+    Handle Ctrl+C (SIGINT) gracefully by stopping recording instead of crashing.
+    """
+    print("\n\n[INFO] Ctrl+C detected. Stopping recording gracefully...")
+    if not start_recording_event.is_set():
+        # During preview phase - exit immediately
+        quit_program_event.set()
+        sys.exit(0)
+    else:
+        # During recording - stop recording gracefully
+        stop_recording.set()
+        quit_program_event.set()
 
 # ____________________________________________________________________________
 #
@@ -62,6 +80,10 @@ def console_listener_unified():
             
     except EOFError:
         # Handles case where standard input is closed prematurely
+        quit_program_event.set()
+        return
+    except KeyboardInterrupt:
+        # Ctrl+C during input - let signal handler handle it
         quit_program_event.set()
         return
     except Exception as e:
@@ -92,10 +114,14 @@ def console_listener_unified():
         except EOFError:
             # Standard input closed, exit gracefully
             quit_program_event.set()
+        except KeyboardInterrupt:
+            # Ctrl+C during input - let signal handler handle it
+            pass
         except Exception as e:
             print(f"[FATAL] Console input error during STOP wait: {e}")
             quit_program_event.set()
         break # Exit loop after handling input or error
+
 
 # ____________________________________________________________________________
 #
@@ -438,11 +464,19 @@ def record_video(
         # Delete frames and chunks if required
         final_delete_frames = DELETE_FRAMES and not SKIP_CLEANUP
         cleanup_frames(save_path, final_delete_frames, video_success)
+        
+        # If quit was requested, force exit to terminate daemon threads
+        if quit_program_event.is_set():
+            print("[INFO] Program terminated.")
+            os._exit(0)
 
 
 if __name__ == "__main__":
     # Initialize the multiprocessing objects ONLY when the script is run directly
     multiprocessing.freeze_support() # Recommended for Windows/executable distribution
+    
+    # Install signal handler for graceful Ctrl+C handling
+    signal.signal(signal.SIGINT, signal_handler)
     
     manager = multiprocessing.Manager()
     render_queue = manager.Queue()
