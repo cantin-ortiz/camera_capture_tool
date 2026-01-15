@@ -13,6 +13,9 @@ from buffer_control import CircularBuffer
 # Import the chunk duration from the central config
 from config import CHUNK_DURATION_S 
 
+# Windows API for console focus management
+import ctypes
+
 # Global events for thread communication
 stop_recording = threading.Event()
 fs_error_detected = threading.Event()
@@ -21,6 +24,25 @@ quit_program_event = threading.Event()
 
 # Define the common window name
 WINDOW_NAME = 'Live Camera Feed'
+
+
+def refocus_console():
+    """
+    Refocus the console window after OpenCV window creation steals focus.
+    Windows-specific implementation using ctypes.
+    """
+    try:
+        # Get the console window handle
+        kernel32 = ctypes.windll.kernel32
+        user32 = ctypes.windll.user32
+        
+        hwnd = kernel32.GetConsoleWindow()
+        if hwnd:
+            # Bring console window to foreground
+            user32.SetForegroundWindow(hwnd)
+    except Exception:
+        # Silently fail on non-Windows or if API calls fail
+        pass
 
 
 def set_line_source(cam, line_name, source_name):
@@ -66,6 +88,9 @@ def run_live_preview(cam, LIVE_VIDEO, start_recording_event):
     
     # Ensure the window is created outside the loop
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_AUTOSIZE)
+    
+    # Refocus the console after window creation
+    refocus_console()
     
     preview_active = True
     
