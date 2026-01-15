@@ -32,15 +32,15 @@ class CircularBuffer:
                 print(f"\n[BUFFER WARNING] Buffer full! Acquisition thread must wait for Saving Worker to catch up.")
                 self.condition.wait()
             
-            # Use np.copy() to ensure the data is not referenced by the camera/SpinView later
-            self.buffer[self.write_index] = (self.total_frames_written, np.copy(np_image))
+            # Store the frame directly (no copy needed - acquisition thread already copied)
+            self.buffer[self.write_index] = (self.total_frames_written, np_image)
             frame_index = self.total_frames_written
             
             self.write_index = (self.write_index + 1) % self.size
             self.total_frames_written += 1
             
             # Notify the consumer (Saving Worker) that new data is available
-            self.condition.notify_all()
+            self.condition.notify()
             return frame_index
 
     def get(self):
@@ -72,5 +72,5 @@ class CircularBuffer:
             self.read_index = (self.read_index + 1) % self.size
             
             # Notify the producer (Acquisition Thread) that space has been cleared
-            self.condition.notify_all()
+            self.condition.notify()
             return frame_index, np_image

@@ -168,20 +168,19 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
                 image_result.Release()
                 continue
 
-            # This is a critical copy of the image data for processing/saving
-            np_image = image_result.GetNDArray() 
+            # Create a stable copy of the image data before camera buffer is reused
+            # This single copy serves both the saving worker and display
+            np_image = image_result.GetNDArray().copy()
+            image_result.Release()
             
             # --- UPDATE SHARED FRAME DATA FOR MAIN THREAD DISPLAY ---
             if LIVE_VIDEO:
-                # Update the shared variable with a STABLE COPY of the frame
-                # This prevents memory racing with the camera's internal buffer.
+                # Share the same copy with the display thread
                 with latest_frame_lock:
-                    latest_frame_data[0] = np_image.copy() 
+                    latest_frame_data[0] = np_image
             
-            # 2. WRITE TO BUFFER (FAST, RAM operation)
-            current_frame_index = buffer.put(np_image) 
-            
-            image_result.Release()
+            # 2. WRITE TO BUFFER (FAST, RAM operation - no additional copy needed)
+            current_frame_index = buffer.put(np_image)
             t_last_frame = time.perf_counter()
             i += 1
             
