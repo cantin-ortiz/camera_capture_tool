@@ -6,7 +6,7 @@ import time
 import os
 from processing_utils import render_chunk
 
-def render_worker(image_folder, framerate, render_queue, stop_event):
+def render_worker(image_folder, framerate, render_queue, stop_event, debug_mode=False):
     """
     Worker function (process) that continuously pulls chunk jobs from the queue and renders them.
     This function now uses the logical chunk index for naming and sorts the output paths.
@@ -25,7 +25,8 @@ def render_worker(image_folder, framerate, render_queue, stop_event):
             
             # --- EXECUTE THE RENDER JOB ---
             # Use chunk_index + 1 for display chunk number (starting from 1)
-            print(f"\n[WORKER INFO] Rendering Chunk {chunk_index + 1} (Frames {start_frame} to {start_frame + n_frames - 1}) from Process...")
+            if debug_mode:
+                print(f"\n[WORKER INFO] Rendering Chunk {chunk_index + 1} (Frames {start_frame} to {start_frame + n_frames - 1}) from Process...")
             
             # Execute the heavy FFmpeg job. chunk_index is passed as chunk_num.
             chunk_file = render_chunk(
@@ -47,7 +48,8 @@ def render_worker(image_folder, framerate, render_queue, stop_event):
             # Log the error and continue to the next job
     
     # --- PROCESS EXIT & SORTING ---
-    print("[WORKER INFO] Render process received stop signal. Preparing final path list...")
+    if debug_mode:
+        print("[WORKER INFO] Render process received stop signal. Preparing final path list...")
     
     # 1. SORT the list by the chunk index (the first element of the tuple)
     chunk_paths_with_index.sort(key=lambda x: x[0])
@@ -62,7 +64,8 @@ def render_worker(image_folder, framerate, render_queue, stop_event):
                 for path in sorted_chunk_paths:
                     # WRITE IN FFmpeg CONCATENATION LIST FORMAT: file 'path'
                     f.write(f"file '{path}'\n") 
-            print(f"[WORKER INFO] Wrote {len(sorted_chunk_paths)} correctly ordered chunk paths to {chunk_list_file}")
+            if debug_mode:
+                print(f"[WORKER INFO] Wrote {len(sorted_chunk_paths)} correctly ordered chunk paths to {chunk_list_file}")
         except Exception as e:
             print(f"[WORKER ERROR] Failed to write chunk paths on exit: {e}")
 
@@ -73,5 +76,6 @@ def render_worker(image_folder, framerate, render_queue, stop_event):
         except queue.Empty:
             break
             
-    print("[WORKER INFO] Rendering process exiting.")
+    if debug_mode:
+        print("[WORKER INFO] Rendering process exiting.")
     return

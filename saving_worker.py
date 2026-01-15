@@ -12,7 +12,7 @@ from config import CHUNK_DURATION_S
 stop_saving_worker = threading.Event()
 
 # >>> MODIFIED FUNCTION SIGNATURE <<<
-def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render):
+def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render, debug_mode=False):
     """
     Worker function that continuously pulls raw frames from the CircularBuffer,
     saves them to disk, and conditionally posts rendering jobs based on the flag.
@@ -47,7 +47,10 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render)
         
         # Calculate lag: Total frames acquired minus total frames saved
         buffer_lag = buffer.total_frames_written - i
-        print(f"[SAVE WORKER] Saved frame {frame_index:07d} (Lag: {buffer_lag} frames).", end='\r')
+        if debug_mode:
+            print(f"[SAVE WORKER] Saved frame {frame_index:07d} (Lag: {buffer_lag} frames).", end='\r')
+        else:
+            print(f"Lag: {buffer_lag} frames", end='\r')
 
         # --- CHUNK RENDERING TRIGGER (ADAPTIVE FLOW CONTROL) ---
         
@@ -68,12 +71,14 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render)
                         
                         # POSTING TUPLE: (LOGICAL_INDEX, start_frame, n_frames)
                         render_queue.put((chunk_to_post_index, start_frame_index, FRAMES_PER_CHUNK))
-                        print(f"\n[SAVE WORKER] Posted Flow-Controlled Chunk Job (Frames {start_frame_index} to {start_frame_index + FRAMES_PER_CHUNK - 1}).")
+                        if debug_mode:
+                            print(f"\n[SAVE WORKER] Posted Flow-Controlled Chunk Job (Frames {start_frame_index} to {start_frame_index + FRAMES_PER_CHUNK - 1}).")
                         
                         last_chunk_posted_index = chunk_to_post_index
                     else:
                         # Lag is high. Prioritize disk saving. DEFER POSTING.
-                        print(f"\n[SAVE WORKER] Deferring Chunk Job {chunk_to_post_index+1}. Lag too high ({buffer_lag} frames).")
+                        if debug_mode:
+                            print(f"\n[SAVE WORKER] Deferring Chunk Job {chunk_to_post_index+1}. Lag too high ({buffer_lag} frames).")
             
     # --- POST-STOP: Handle all remaining chunks ---
     # >>> CONDITIONAL EXECUTION <<<
@@ -84,7 +89,8 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render)
         # Post all full chunks that were deferred by the flow control logic
         for chunk_index in range(last_chunk_posted_index + 1, total_chunks_written):
             start_frame_index = chunk_index * FRAMES_PER_CHUNK
-            print(f"\n[SAVE WORKER] Posting Deferred Full Chunk Job {chunk_index+1} ({FRAMES_PER_CHUNK} frames)...")
+            if debug_mode:
+                print(f"\n[SAVE WORKER] Posting Deferred Full Chunk Job {chunk_index+1} ({FRAMES_PER_CHUNK} frames)...")
             # POSTING TUPLE: (LOGICAL_INDEX, start_frame, n_frames)
             render_queue.put((chunk_index, start_frame_index, FRAMES_PER_CHUNK))
 
@@ -95,9 +101,11 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render)
             chunk_index = total_chunks_written # Use the next logical index
             start_frame_index = i - remaining_frames
             
-            print(f"\n[SAVE WORKER] Posting final partial chunk job ({remaining_frames} frames)...")
+            if debug_mode:
+                print(f"\n[SAVE WORKER] Posting final partial chunk job ({remaining_frames} frames)...")
             # POSTING TUPLE: (LOGICAL_INDEX, start_frame, n_frames)
             render_queue.put((chunk_index, start_frame_index, remaining_frames))
         
-    print("[SAVE WORKER] Saving worker exiting.")
+    if debug_mode:
+        print("[SAVE WORKER] Saving worker exiting.")
     return

@@ -117,6 +117,7 @@ parser.add_argument('--keep-frames', action='store_true', help='Keep raw image f
 parser.add_argument('--sequential', action='store_true', help='Use sequential rendering (no concurrent worker) (default: concurrent)')
 parser.add_argument('--nolive', action='store_true', help='Disable live video preview (default: live)')
 parser.add_argument('--no-cleanup', action='store_true', help='Skip the final cleanup and deletion of frames/video files on error (default: cleanup)')
+parser.add_argument('--debug', action='store_true', help='Enable debug mode with verbose worker output (default: quiet)')
 
 def record_video(
     DURATION, 
@@ -127,7 +128,8 @@ def record_video(
     DELETE_FRAMES,
     CONCURRENT_RENDER,
     LIVE_VIDEO,
-    SKIP_CLEANUP):
+    SKIP_CLEANUP,
+    DEBUG_MODE):
     
     # --- Shared State for Display (Accessed by acquisition thread and main thread) ---
     latest_frame_data = [None] # Shared list to hold the latest frame (numpy array)
@@ -232,7 +234,7 @@ def record_video(
     # --- Start Saving Worker (Consumer Thread) ---
     saving_thread = threading.Thread(
         target=saving_worker, 
-        args=(image_buffer, save_path, FRAMERATE, render_queue, CONCURRENT_RENDER)
+        args=(image_buffer, save_path, FRAMERATE, render_queue, CONCURRENT_RENDER, DEBUG_MODE)
     )
     saving_thread.start()
     
@@ -241,12 +243,14 @@ def record_video(
     if CONCURRENT_RENDER:
         render_process = multiprocessing.Process(
             target=render_worker, 
-            args=(save_path, FRAMERATE, render_queue, stop_worker)
+            args=(save_path, FRAMERATE, render_queue, stop_worker, DEBUG_MODE)
         )
         render_process.start()
-        print(f"[INFO] Concurrent rendering worker started (PID: {render_process.pid})")
+        if DEBUG_MODE:
+            print(f"[INFO] Concurrent rendering worker started (PID: {render_process.pid})")
     else:
-        print("[INFO] Sequential rendering selected (no concurrent worker).")
+        if DEBUG_MODE:
+            print("[INFO] Sequential rendering selected (no concurrent worker).")
 
     # --- Start Acquisition Thread (Producer) ---
     acquisition_thread = threading.Thread(
@@ -263,7 +267,8 @@ def record_video(
     
     # LIVE_VIDEO is the command line flag. live_display_active is the runtime control.
     if LIVE_VIDEO:
-        print("[INFO] Main thread starting dedicated display loop (15 FPS update).")
+        if DEBUG_MODE:
+            print("[INFO] Main thread starting dedicated display loop (15 FPS update).")
         
         # Frame rate control for the display (e.g., ~15 FPS display)
         DISPLAY_PERIOD_S = 1.0 / 15.0 
@@ -456,6 +461,7 @@ if __name__ == "__main__":
     CONCURRENT_RENDER = not args.sequential
     LIVE_VIDEO = not args.nolive
     SKIP_CLEANUP = args.no_cleanup
+    DEBUG_MODE = args.debug
     
     # --- START RECORDING ---
     record_video(
@@ -467,4 +473,5 @@ if __name__ == "__main__":
         DELETE_FRAMES, 
         CONCURRENT_RENDER, 
         LIVE_VIDEO,
-        SKIP_CLEANUP)
+        SKIP_CLEANUP,
+        DEBUG_MODE)
