@@ -48,13 +48,12 @@ python src/main_recorder.py [OPTIONS]
 ### Command-Line Options
 
 | Option | Description | Default |
-|--------|-------------|---------|
+|--------|-------------|---------||
 | `--duration SECONDS` | Recording duration (infinite if not specified) | None |
 | `--framerate HZ` | Camera framerate in Hz, must match what you set in SpinView | 50 | 
 | `--save_path PATH` | Folder for saving recordings | `~/Documents/flea3_recordings` |
 | `--line {1,2}` | GPIO line for strobe output | 2 |
-| `--output {video,images,both}` | Output format | video |
-| `--keep-frames` | Keep raw frames after video generation | False |
+| `--output {video,frames,both}` | Output: video (MP4 only), frames (raw frames only), both (MP4+frames) | video |
 | `--sequential` | Disable concurrent rendering | False |
 | `--nolive` | Disable live preview | False |
 | `--debug` | Enable verbose debug output | False |
@@ -69,7 +68,7 @@ start_recording.bat --duration 10 --framerate 40
 
 **Keep frames for post-processing**:
 ```bash
-start_recording.bat --keep-frames
+start_recording.bat --output both
 ```
 
 **Low-speed capture without preview**:
@@ -79,7 +78,7 @@ start_recording.bat --framerate 10 --nolive
 
 **Debug mode with frame preservation**:
 ```bash
-start_recording.bat --debug --keep-frames --sequential
+start_recording.bat --debug --output both --sequential
 ```
 
 ## Configuration
@@ -170,7 +169,7 @@ Disable with `--sequential` if you encounter stability issues.
 - Format: MP4 (H.264 codec)
 - Naming: `VIDEO_YYYYMMDD-HHMMSS.mp4`
 
-### Frame Files (if `--keep-frames`)
+### Frame Files (if `--output frames` or `--output both`)
 - Location: `save_path/VIDEO_YYYYMMDD-HHMMSS/`
 - Format: JPEG images
 - Naming: `frame_NNNNNN.jpg`

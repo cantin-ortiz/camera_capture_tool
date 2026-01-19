@@ -140,8 +140,7 @@ parser.add_argument(
 )
 parser.add_argument('--framerate', type=int, default=DEFAULT_FRAMERATE, help=f'Recording framerate in Hz (should match camera setting) (default: {DEFAULT_FRAMERATE})')
 parser.add_argument('--line', type=int, default=DEFAULT_LINE, choices=[1, 2], help=f'Line (GPIO pin) to use for strobe output (1 or 2) (default: {DEFAULT_LINE})')
-parser.add_argument('--output', type=str, default='video', choices=['video', 'images', 'both'], help='Output format: video, raw images, or both (default: video)')
-parser.add_argument('--keep-frames', action='store_true', help='Keep raw image frames after video generation (default: delete)')
+parser.add_argument('--output', type=str, default='video', choices=['video', 'frames', 'both'], help='Output format: video (delete frames), frames (no video), or both (video + keep frames) (default: video)')
 parser.add_argument('--sequential', action='store_true', help='Use sequential rendering (no concurrent worker) (default: concurrent)')
 parser.add_argument('--nolive', action='store_true', help='Disable live video preview (default: live)')
 parser.add_argument('--debug', action='store_true', help='Enable debug mode with verbose worker output (default: quiet)')
@@ -194,6 +193,11 @@ def record_video(
              cam.AcquisitionFrameRateEnable.SetValue(True)
         except PySpin.SpinnakerException:
              pass 
+        
+        # Set GPIO line to UserOutput mode initially (constant value, strobe OFF)
+        if LINE in (1, 2):
+            source_name = f"UserOutput{LINE}"
+            set_line_source(cam, f"Line{LINE}", source_name)
 
     except PySpin.SpinnakerException as ex:
         print(f"[ERROR] Camera initialization failed: {ex}")
@@ -285,7 +289,7 @@ def record_video(
         'framerate': FRAMERATE,
         'line': LINE,
         'generate_video': GENERATE_VIDEO,
-        'keep_frames': not DELETE_FRAMES,
+        'keep_frames': not DELETE_FRAMES,  # True for 'frames' or 'both', False for 'video'
         'concurrent_render': CONCURRENT_RENDER,
         'live_video': LIVE_VIDEO,
         'debug_mode': DEBUG_MODE
@@ -506,7 +510,7 @@ if __name__ == "__main__":
     FRAMERATE = args.framerate
     LINE = args.line
     GENERATE_VIDEO = (args.output == 'video' or args.output == 'both')
-    DELETE_FRAMES = not args.keep_frames
+    DELETE_FRAMES = (args.output == 'video')  # Only delete frames if output is 'video' only
     CONCURRENT_RENDER = not args.sequential
     LIVE_VIDEO = not args.nolive
     DEBUG_MODE = args.debug

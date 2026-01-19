@@ -181,6 +181,6 @@ def cleanup_frames(save_path, delete_frames, video_success):
     else:
         # Inform the user why frames were kept
         if not delete_frames:
-            print("[INFO] Frames were kept because --keep-frames argument was used.")
+            print("[INFO] Frames were kept (--output frames or --output both).")
         elif not video_success:
             print("[INFO] Frames were kept because video generation failed.")
