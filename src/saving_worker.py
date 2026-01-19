@@ -29,6 +29,7 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
     MAX_ACCEPTABLE_LAG_FRAMES = 50 
 
     i = 0 # Total frames saved by this worker
+    start_time = time.time()  # Track when recording started
     
     while not stop_saving_worker.is_set():
         # Get frame from the circular buffer (blocking call)
@@ -51,10 +52,12 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
         # Calculate lag: Total frames acquired minus total frames saved
         buffer_lag = buffer.total_frames_written - i
         buffer_capacity = buffer.size
+        elapsed_time = time.time() - start_time
+        
         if debug_mode:
-            print(f"[SAVE WORKER] Saved frame {frame_index:07d} (Lag: {buffer_lag} frames).", end='\r')
+            print(f"[SAVE WORKER] Saved frame {frame_index:07d} (Lag: {buffer_lag} frames, Time: {elapsed_time:.1f}s).", end='\r')
         else:
-            print(f"Lag: {buffer_lag}/{buffer_capacity} frames", end='\r')
+            print(f"Lag: {buffer_lag}/{buffer_capacity} frames | Time: {elapsed_time:.1f}s", end='\r')
 
         # --- CHUNK RENDERING TRIGGER (ADAPTIVE FLOW CONTROL) ---
         
