@@ -14,7 +14,7 @@ import multiprocessing
 
 # Add parent directory to path to import config
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER
+from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER, DEFAULT_FRAMERATE, DEFAULT_LINE
 from src.buffer_control import CircularBuffer 
 # Import all camera/acquisition functions from the camera module
 # NOTE: Removed display_worker import, as it was removed in previous step
@@ -139,8 +139,8 @@ parser.add_argument(
     default=DEFAULT_SAVE_PATH, 
     help='Folder to save videos and frames (default: ~/Documents/flea3_recordings)'
 )
-parser.add_argument('--framerate', type=int, default=50, help='Recording framerate in Hz (should match camera setting)')
-parser.add_argument('--line', type=int, default=2, choices=[1, 2], help='Line (GPIO pin) to use for strobe output (1 or 2, default: 2)')
+parser.add_argument('--framerate', type=int, default=DEFAULT_FRAMERATE, help=f'Recording framerate in Hz (should match camera setting) (default: {DEFAULT_FRAMERATE})')
+parser.add_argument('--line', type=int, default=DEFAULT_LINE, choices=[1, 2], help=f'Line (GPIO pin) to use for strobe output (1 or 2) (default: {DEFAULT_LINE})')
 parser.add_argument('--output', type=str, default='video', choices=['video', 'images', 'both'], help='Output format: video, raw images, or both (default: video)')
 parser.add_argument('--keep-frames', action='store_true', help='Keep raw image frames after video generation (default: delete)')
 parser.add_argument('--sequential', action='store_true', help='Use sequential rendering (no concurrent worker) (default: concurrent)')

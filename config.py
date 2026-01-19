@@ -8,6 +8,13 @@
 VENV_PATH = "../env_camera"
 #VENV_PATH = None
 
+# Default recording framerate (Hz)
+# This should match the framerate configured in SpinView
+DEFAULT_FRAMERATE = 50
+
+# Default GPIO line for strobe output (1 or 2)
+DEFAULT_LINE = 2
+
 # Duration (in seconds) that defines the size of each video chunk.
 # E.g., at 50Hz, 10s = 500 frames per chunk.
 CHUNK_DURATION_S = 10
