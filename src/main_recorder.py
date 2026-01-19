@@ -264,7 +264,7 @@ def record_video(
     # --- Start Saving Worker (Consumer Thread) ---
     saving_thread = threading.Thread(
         target=saving_worker, 
-        args=(image_buffer, save_path, FRAMERATE, render_queue, CONCURRENT_RENDER, DEBUG_MODE)
+        args=(image_buffer, save_path, FRAMERATE, render_queue, CONCURRENT_RENDER, GENERATE_VIDEO, DEBUG_MODE)
     )
     saving_thread.start()
     

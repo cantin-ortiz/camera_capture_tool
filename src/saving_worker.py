@@ -15,7 +15,7 @@ from config import CHUNK_DURATION_S, JPEG_QUALITY
 stop_saving_worker = threading.Event()
 
 # >>> MODIFIED FUNCTION SIGNATURE <<<
-def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render, debug_mode=False):
+def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render, generate_video, debug_mode=False):
     """
     Worker function that continuously pulls raw frames from the CircularBuffer,
     saves them to disk, and conditionally posts rendering jobs based on the flag.
@@ -61,8 +61,8 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
 
         # --- CHUNK RENDERING TRIGGER (ADAPTIVE FLOW CONTROL) ---
         
-        # >>> CONDITIONAL EXECUTION <<<
-        if concurrent_render: 
+        # >>> CONDITIONAL EXECUTION: Only if video generation is enabled <<<
+        if generate_video and concurrent_render: 
             # 1. Check if a chunk is fully written to disk and needs posting
             if (i > 0) and (i % FRAMES_PER_CHUNK == 0):
                 
@@ -90,8 +90,8 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
     print(f"\n[SAVE WORKER] Exited main loop. Total frames saved: {i}")
     
     # --- POST-STOP: Handle all remaining chunks ---
-    # >>> CONDITIONAL EXECUTION <<<
-    if concurrent_render:
+    # >>> CONDITIONAL EXECUTION: Only if video generation is enabled <<<
+    if generate_video and concurrent_render:
         # This ensures all deferred chunks are posted immediately upon acquisition stop.
         total_chunks_written = i // FRAMES_PER_CHUNK
         

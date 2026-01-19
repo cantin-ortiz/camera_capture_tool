@@ -166,7 +166,28 @@ def cleanup_frames(save_path, delete_frames, video_success):
     """
     Delete all image frames and the folder containing them if DELETE_FRAMES is True 
     and the video was successfully generated.
+    Also cleans up temporary rendering artifacts (.ts files and chunk list) regardless of DELETE_FRAMES.
     """
+    
+    # Always clean up temporary rendering artifacts if they exist
+    chunk_list_file = os.path.join(save_path, "final_chunk_paths.txt")
+    if os.path.exists(chunk_list_file):
+        try:
+            os.remove(chunk_list_file)
+            print(f"[INFO] Deleted temporary chunk list: {chunk_list_file}")
+        except OSError as e:
+            print(f"[WARNING] Could not delete chunk list file: {e}")
+    
+    # Clean up all .ts chunk files
+    ts_files = glob.glob(os.path.join(save_path, "chunk_*.ts"))
+    for ts_file in ts_files:
+        try:
+            os.remove(ts_file)
+            if len(ts_files) > 0:
+                print(f"[INFO] Deleted {len(ts_files)} temporary chunk file(s)")
+                break  # Only print once
+        except OSError as e:
+            print(f"[WARNING] Could not delete chunk file {ts_file}: {e}")
 
     if delete_frames and video_success:
         if os.path.exists(save_path) and os.path.isdir(save_path):
