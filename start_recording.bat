@@ -59,6 +59,7 @@ if errorlevel 1 (
 )
 
 echo Virtual environment activated successfully.
+echo.
 
 :skip_venv
 echo Starting camera recorder...
@@ -73,3 +74,4 @@ echo Recording complete!
 echo Press any key to exit...
 echo ========================================
 pause
+
