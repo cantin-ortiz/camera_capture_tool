@@ -218,9 +218,9 @@ Lag: 950/1000 frames | Time: 25.3s
 ```
 
 **Actions:**
-1. Current recording will complete safely (buffer has headroom)
+1. Current recording may crash
 2. For future recordings, increase `BUFFER_MULTIPLIER` in config.py
-3. Consider: faster storage device, lower JPEG quality, or slower frame rate
+3. Consider: faster storage device, lower JPEG quality, or slower frame rate  or using the flag `--sequential`
 
 ---
 
