@@ -28,6 +28,8 @@ This tool captures synchronized video from a FLIR/BlackFly camera with GPIO stro
 
 ### 3.1 System Configuration
 
+The program should be located in the folder `C:\Users\bocca\Documents\camera_capture_tool` on KPM computers (the username "bocca" may vary)
+
 1. **Open configuration file** (`config.py`)
 2. **Verify settings:**
    - `VENV_PATH`: Path to Python virtual environment (or `None` if system Python has all required packages)
@@ -86,7 +88,7 @@ Before using this tool, configure the camera in SpinView:
 
 2. **Start Ephys recording**
    - It is crucial for synchronisation that the ephys recording is started *before* the video recording
-   - The video recording is considered started when the key "ENTER" is pressed and frames get acquired, not when opening the program.
+   - The video recording is considered started when the `ENTER` key is pressed and frames get acquired, not when opening the program.
 
 3. **Start video recording**
    - Press **ENTER** in the console window
@@ -98,13 +100,19 @@ Before using this tool, configure the camera in SpinView:
    - Monitor lag counter (should stay near 0)
    - If lag increases significantly (>10% of buffer), recording may be too fast for disk
    - If lag gets close to the buffer size (Y), the storage disk is getting overloaded and the recording will likely crash.
-   - Simple solutions are to reduce resolution, increase frame compression (lower value for JPEG_QUALITY in config.py), reduce framerate, and check that no other program overloads the storage disk. Also consider using the --sequential mode.
+   - Simple solutions are to reduce resolution, increase frame compression (lower value for `JPEG_QUALITY` in `config.py`), reduce framerate, and check that no other program overloads the storage disk. Also consider using the `--sequential` mode.
+   - The live preview may look choppy during recording. This is normal - the display is capped at 15 FPS for optimization. The actual recording and final video use your full specified framerate.
 
-5. **Stop Recording**
+5. **Stop video recording**
+   - For accurate synchronisation, it is crucial that the video recording is stopped *before* the ephys.
    - **Manual stop**: Press `ENTER` in console
-   - **Automatic stop**: Wait for specified duration to elapse. Pressing `ENTER` will cause an anticipated ending of the recording.
+   - **Automatic stop**: Wait for specified duration to elapse. Pressing `ENTER` during timed recording will cause early termination.
    - GPIO strobe deactivates
    - Message displays: "Acquisition complete"
+
+6. **Stop Ephys recording**
+   - Only after the camera recording has been stopped, which deactivates the GPIO strobe, can the ephys recording end.
+   - Remember to write down which video recording corresponds to your ephys session.
 
 ### 4.3 Post-Recording Processing
 
@@ -122,14 +130,16 @@ Before using this tool, configure the camera in SpinView:
 
 ## 5. Command-Line Options
 
+Please note that for some of these arguments, the default value is set in `config.py`. Sending the value as an argument will overwrite it.
+
 | Option | Values | Default | Description |
 |--------|--------|---------|-------------|
-| `--duration` | Number (seconds) | None | Auto-stop after specified time |
-| `--framerate` | Number (Hz) | 50 | Expected camera frame rate |
+| `--duration` | Number (seconds) | None | Auto-stop after specified time. Useful to make sure the video finishes before ephys |
+| `--framerate` | Number (Hz) | 50 | Expected camera frame rate, must match the settings from SpinView |
 | `--save_path` | Path string | `~/Documents/flea3_recordings` | Recording destination |
-| `--line` | 1 or 2 | 2 | GPIO line for strobe output |
-| `--output` | `video`, `frames`, `both` | `video` | video=MP4 only; frames=raw frames only; both=MP4+frames |
-| `--sequential` | Flag | Off | Disable concurrent video rendering |
+| `--line` | 1 or 2 | 2 | GPIO line for strobe output. For Axona recordings, use 1. For OpenEphys recordings, use 2 |
+| `--output` | `video`, `frames`, `both` | `video` | video=MP4 only; frames=raw frames only; both=MP4+frames. Useful if you are not sure about the compression quality. |
+| `--sequential` | Flag | Off | Disable concurrent video rendering. All the rendering will happen at the end. Slow, but more reliable and reduces disk usage. |
 | `--nolive` | Flag | Off | Disable live preview window |
 | `--debug` | Flag | Off | Enable debug messages |
 
@@ -158,13 +168,12 @@ Each recording session creates:
 ### 6.1 Directory Structure
 ```
 ~/Documents/flea3_recordings/
-└── VIDEO_YYYYMMDD-HHMMSS/
-    ├── VIDEO_YYYYMMDD-HHMMSS.mp4     (if --output video or both)
-    ├── VIDEO_YYYYMMDD-HHMMSS.csv     (timing and metadata)
-    └── frames/                        (if --output frames or both)
-        ├── frame_0000000.jpg
-        ├── frame_0000001.jpg
-        └── ...
+├── VIDEO_YYYYMMDD-HHMMSS.mp4     (if --output video or both)
+├── VIDEO_YYYYMMDD-HHMMSS.csv     (always generated)
+└── VIDEO_YYYYMMDD-HHMMSS/        (if --output frames or both)
+    ├── frame_0000000.jpg
+    ├── frame_0000001.jpg
+    └── ...
 ```
 
 ### 6.2 CSV Metadata File
@@ -188,18 +197,7 @@ The `.csv` file contains:
 
 ## 7. Troubleshooting
 
-### 7.1 Common Issues
-
-| Problem | Possible Cause | Solution |
-|---------|---------------|----------|
-| "Camera not detected" | Camera disconnected or in use | Check USB connection; close SpinView |
-| "PySpin not found" | Virtual environment not activated | Verify `VENV_PATH` in config.py |
-| High lag during recording | Slow disk I/O | Increase `BUFFER_MULTIPLIER` in config.py |
-| Frame rate error | Mismatch with camera settings | Match `--framerate` to SpinView configuration |
-| Video file missing | Frame rate instability | Check console for frame rate error messages |
-| Batch file label error | Incorrect config.py encoding | Re-save config.py as UTF-8 |
-
-### 7.2 Frame Rate Warnings
+### 7.1 Frame Rate Warnings
 
 If console displays:
 ```
@@ -212,7 +210,7 @@ If console displays:
 3. Verify `--framerate` matches camera settings
 4. Review system performance (CPU/disk usage)
 
-### 7.3 Buffer Overflow
+### 7.2 Buffer Overflow
 
 If lag counter approaches buffer size:
 ```
@@ -226,74 +224,9 @@ Lag: 950/1000 frames | Time: 25.3s
 
 ---
 
-## 8. Data Management
-
-### 8.1 Storage Requirements
-
-Approximate disk usage per minute of recording:
-
-| Frame Rate | Resolution | JPEG Quality | Storage/min |
-|------------|-----------|--------------|-------------|
-| 50 Hz | 1920×1200 | 85 | ~1.2 GB |
-| 50 Hz | 1920×1200 | 75 | ~0.9 GB |
-| 100 Hz | 1920×1200 | 85 | ~2.4 GB |
-
-### 8.2 Archiving Recordings
-
-1. Recordings are saved in timestamped folders: `VIDEO_YYYYMMDD-HHMMSS`
-2. Each folder is self-contained with video and metadata
-3. Move entire folders to archive storage
-4. CSV file enables later verification of recording parameters
-
----
-
-## 9. Maintenance
-
-### 9.1 Regular Checks
-
-- **Weekly**: Verify disk space availability
-- **Monthly**: Review saved recordings and archive as needed
-- **As needed**: Update config.py settings for new experiments
-
-### 9.2 Software Updates
-
-When updating the tool:
-1. Note current `config.py` settings
-2. Pull updates from repository: `git pull`
-3. Review `config.py` for new options
-4. Test with short recording before full use
-
----
-
-## 10. Best Practices
-
-✅ **Do:**
-- Test with short recording (2-5s) before long sessions
-- Monitor lag counter during first minute of recording
-- Keep backup of important recordings
-- Document experimental conditions in lab notebook
-- Use `--nolive` for long recordings to reduce CPU load
-
-❌ **Don't:**
-- Disconnect camera during recording
-- Run multiple camera applications simultaneously
-- Modify files in recording directory during capture
-- Ignore frame rate error warnings
-
----
-
-## 11. Contact and Support
-
-For technical issues or questions about this tool:
-- Check README.md for detailed documentation
-- Review git commit history for recent changes
-- Contact: [Your contact information]
-
----
-
 ## Revision History
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| 1.0 | 2026-01-19 | Initial SOP creation | - |
+| 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
 
