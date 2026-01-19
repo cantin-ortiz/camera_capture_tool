@@ -8,6 +8,10 @@
 VENV_PATH = "../env_camera"
 #VENV_PATH = None
 
+# Default save path for recordings
+# Videos and frames will be saved in timestamped subfolders within this directory
+DEFAULT_SAVE_PATH = "~/Documents/flea3_recordings"
+
 # Default recording framerate (Hz)
 # This should match the framerate configured in SpinView
 DEFAULT_FRAMERATE = 50

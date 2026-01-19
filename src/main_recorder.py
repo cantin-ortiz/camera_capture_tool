@@ -14,10 +14,9 @@ import multiprocessing
 
 # Add parent directory to path to import config
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER, DEFAULT_FRAMERATE, DEFAULT_LINE
+from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER, DEFAULT_FRAMERATE, DEFAULT_LINE, DEFAULT_SAVE_PATH
 from src.buffer_control import CircularBuffer 
 # Import all camera/acquisition functions from the camera module
-# NOTE: Removed display_worker import, as it was removed in previous step
 from src.camera_control import set_line_source, acquire_images, stop_recording, fs_error_detected, run_live_preview, quit_program_event
 # Import all file/processing utilities from the processing module
 from src.processing_utils import get_save_path, create_video_from_images, cleanup_frames
@@ -25,8 +24,8 @@ from src.processing_utils import get_save_path, create_video_from_images, cleanu
 from src.render_worker import render_worker
 from src.saving_worker import saving_worker, stop_saving_worker
 
-# Define the dynamic default path: ~/Documents/flea3_recordings
-DEFAULT_SAVE_PATH = os.path.join(os.path.expanduser('~'), "Documents", "flea3_recordings")
+# Expand the default save path from config
+DEFAULT_SAVE_PATH = os.path.expanduser(DEFAULT_SAVE_PATH)
 
 # Define the common window name
 WINDOW_NAME = 'Live Camera Feed'
@@ -137,7 +136,7 @@ parser.add_argument(
     '--save_path', 
     type=str, 
     default=DEFAULT_SAVE_PATH, 
-    help='Folder to save videos and frames (default: ~/Documents/flea3_recordings)'
+    help=f'Folder to save videos and frames (default: {DEFAULT_SAVE_PATH})'
 )
 parser.add_argument('--framerate', type=int, default=DEFAULT_FRAMERATE, help=f'Recording framerate in Hz (should match camera setting) (default: {DEFAULT_FRAMERATE})')
 parser.add_argument('--line', type=int, default=DEFAULT_LINE, choices=[1, 2], help=f'Line (GPIO pin) to use for strobe output (1 or 2) (default: {DEFAULT_LINE})')
@@ -280,10 +279,22 @@ def record_video(
             print("[INFO] Sequential rendering selected (no concurrent worker).")
 
     # --- Start Acquisition Thread (Producer) ---
+    # Create metadata dictionary for CSV export
+    metadata = {
+        'duration': DURATION,
+        'framerate': FRAMERATE,
+        'line': LINE,
+        'generate_video': GENERATE_VIDEO,
+        'keep_frames': not DELETE_FRAMES,
+        'concurrent_render': CONCURRENT_RENDER,
+        'live_video': LIVE_VIDEO,
+        'debug_mode': DEBUG_MODE
+    }
+    
     acquisition_thread = threading.Thread(
         target=acquire_images, 
         # Pass shared variables for the main thread display loop
-        args=(image_buffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock) 
+        args=(image_buffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock, metadata) 
     )
     acquisition_thread.start()
     

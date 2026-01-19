@@ -10,11 +10,11 @@ import queue
 import numpy as np # Explicitly imported for np_image.copy()
 # Import the buffer class for type hinting
 from src.buffer_control import CircularBuffer 
-# Import the chunk duration from the central config
+# Import config values
 import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from config import CHUNK_DURATION_S 
+from config import CHUNK_DURATION_S, BUFFER_MULTIPLIER, JPEG_QUALITY 
 
 # Windows API for console focus management
 import ctypes
@@ -153,7 +153,7 @@ def run_live_preview(cam, LIVE_VIDEO, start_recording_event):
 
 # Removed display_worker function.
 
-def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock):
+def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, LINE, LIVE_VIDEO, latest_frame_data, latest_frame_lock, metadata=None):
     """
     Continuously acquires images and writes them to the in-memory CircularBuffer and 
     the latest_frame_data for the main thread display loop.
@@ -248,12 +248,12 @@ def acquire_images(buffer: CircularBuffer, cam, save_path, DURATION, FRAMERATE, 
     print("\n[INFO] Acquisition complete")
 
     # Save and Check timing data (i is the total frames ACQUIRED)
-    _process_timing(save_path, i, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE)
+    _process_timing(save_path, i, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE, metadata)
 
     return    
 
 
-def _process_timing(save_path, nframes, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE):
+def _process_timing(save_path, nframes, t_first_frame, t_last_frame, t_set_line_exposure, t_set_line_constant, FRAMERATE, metadata=None):
     """
     Internal helper to calculate and save timing data (Original simple CSV format).
     """
@@ -272,16 +272,30 @@ def _process_timing(save_path, nframes, t_first_frame, t_last_frame, t_set_line_
         fs_error_detected.set()
         print(f"[ERROR] Estimated frame rate ({estimated_fs:.1f} Hz) differs from expected ({FRAMERATE} Hz) by more than 1 Hz. Video won't be rendered but frames remained saved.")
 
-    # Saving time edges
+    # Saving time edges and configuration metadata
     try:
         csv_name = os.path.basename(save_path) + ".csv"
         output_file = os.path.join(os.path.dirname(save_path), csv_name)     
         with open(output_file, "w") as f:
-            f.write("Variable,Value (s)\n")
+            f.write("Variable,Value\n")
+            # Timing data
             f.write(f"t_first_frame,{t_first_frame}\n")
             f.write(f"t_set_line_exposure,{t_set_line_exposure}\n")
             f.write(f"t_set_line_constant,{t_set_line_constant}\n")
             f.write(f"t_last_frame,{t_last_frame}\n")
+            # Configuration and runtime parameters
+            if metadata:
+                f.write(f"duration_s,{metadata.get('duration', 'None')}\n")
+                f.write(f"framerate_hz,{metadata.get('framerate')}\n")
+                f.write(f"gpio_line,{metadata.get('line')}\n")
+                f.write(f"generate_video,{metadata.get('generate_video')}\n")
+                f.write(f"keep_frames,{metadata.get('keep_frames')}\n")
+                f.write(f"concurrent_render,{metadata.get('concurrent_render')}\n")
+                f.write(f"live_video,{metadata.get('live_video')}\n")
+                f.write(f"debug_mode,{metadata.get('debug_mode')}\n")
+                f.write(f"chunk_duration_s,{CHUNK_DURATION_S}\n")
+                f.write(f"buffer_multiplier,{BUFFER_MULTIPLIER}\n")
+                f.write(f"jpeg_quality,{JPEG_QUALITY}\n")
         print(f"[INFO] Timing saved to {output_file}")
     except Exception as e:
         print(f"[WARNING] Could not export time offsets: {e}")
