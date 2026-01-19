@@ -18,15 +18,17 @@ def render_worker(image_folder, framerate, render_queue, stop_event, debug_mode=
     # Define the final chunk list file path to be written on exit
     chunk_list_file = os.path.join(image_folder, "final_chunk_paths.txt") 
     
-    while not stop_event.is_set():
+    while True:
         try:
             # PULL MODIFIED JOB TUPLE: (chunk_index, start_frame, n_frames)
-            chunk_index, start_frame, n_frames = render_queue.get(timeout=1) 
+            # Use a shorter timeout when stop is signaled to exit faster after queue is empty
+            timeout = 0.5 if stop_event.is_set() else 1
+            chunk_index, start_frame, n_frames = render_queue.get(timeout=timeout) 
             
             # --- EXECUTE THE RENDER JOB ---
             # Use chunk_index + 1 for display chunk number (starting from 1)
             if debug_mode:
-                print(f"\n[WORKER INFO] Rendering Chunk {chunk_index + 1} (Frames {start_frame} to {start_frame + n_frames - 1}) from Process...")
+                print(f"\n[RENDER WORKER] Processing Chunk {chunk_index + 1}: frames {start_frame} to {start_frame + n_frames - 1} ({n_frames} frames)")
             
             # Execute the heavy FFmpeg job. chunk_index is passed as chunk_num.
             chunk_file = render_chunk(
@@ -42,6 +44,9 @@ def render_worker(image_folder, framerate, render_queue, stop_event, debug_mode=
                 chunk_paths_with_index.append((chunk_index, chunk_file))
             
         except queue.Empty:
+            # If stop event is set and queue is empty, we're done
+            if stop_event.is_set():
+                break
             continue
         except Exception as e:
             print(f"[WORKER ERROR] Fatal error during chunk rendering: {e}")

@@ -8,7 +8,7 @@ class CircularBuffer:
     """
     A thread-safe circular buffer for storing NumPy image arrays.
     """
-    def __init__(self, size):
+    def __init__(self, size, stop_event=None):
         self.size = size
         # List of lists to store (frame_index, numpy_array) tuples
         self.buffer = [None] * size 
@@ -20,6 +20,8 @@ class CircularBuffer:
         self.condition = threading.Condition()
         # Total number of frames successfully written (for indexing)
         self.total_frames_written = 0
+        # Stop event for clean shutdown
+        self.stop_event = stop_event
 
     def put(self, np_image):
         """
@@ -48,21 +50,20 @@ class CircularBuffer:
         Retrieves a frame from the buffer. Waits if the buffer is empty.
         Returns (frame_index, numpy_array) or (None, None) if stopping and empty.
         """
-        # LOCAL IMPORT for clean exit check: This avoids circular dependency with saving_worker.py
-        from saving_worker import stop_saving_worker 
-        
         with self.condition:
             # Wait while the buffer is empty
             while self.buffer[self.read_index] is None:
                 
                 # Check for clean exit: if stop is set AND buffer is empty, break out
-                if stop_saving_worker.is_set() and self.read_index == self.write_index:
+                if self.stop_event and self.stop_event.is_set() and self.read_index == self.write_index:
+                    print(f"\n[BUFFER] Returning None - stop set and buffer empty")
                     return None, None 
                 
                 self.condition.wait(timeout=0.5) # Wait for producer to add data
                 
                 # Check again after waking up
-                if self.buffer[self.read_index] is None and stop_saving_worker.is_set():
+                if self.buffer[self.read_index] is None and self.stop_event and self.stop_event.is_set():
+                    print(f"\n[BUFFER] Returning None after wakeup - buffer empty and stop set")
                     return None, None 
 
             # Retrieve data and clear slot

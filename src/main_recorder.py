@@ -222,7 +222,7 @@ def record_video(
     # Create the thread-safe circular buffer (size: buffer_multiplier * framerate * chunk_duration_s, e.g. 2*50*10 = 1000 frames)
     # The size is dynamically calculated from the config file and command line framerate
     BUFFER_SIZE = int(BUFFER_MULTIPLIER * FRAMERATE * CHUNK_DURATION_S)
-    image_buffer = CircularBuffer(BUFFER_SIZE)
+    image_buffer = CircularBuffer(BUFFER_SIZE, stop_event=stop_saving_worker)
     print(f"[INFO] Circular buffer created with size {BUFFER_SIZE} frames (multiplier: {BUFFER_MULTIPLIER:.1f}).")
 
     # ____________________________________________________________________________
@@ -379,7 +379,12 @@ def record_video(
         
         # 1. Stop Saving Worker
         stop_saving_worker.set()
-        saving_thread.join(timeout=10)
+        # Wake up the buffer's condition variable to unblock the saving worker
+        with image_buffer.condition:
+            image_buffer.condition.notify_all()
+        print("[INFO] Waiting for saving worker to finish...")
+        saving_thread.join()  # Wait indefinitely for all frames to be saved
+        print("[INFO] Saving worker finished.")
         
         # 2. Stop Rendering Worker (if concurrent)
         if CONCURRENT_RENDER:

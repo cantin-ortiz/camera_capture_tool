@@ -34,10 +34,10 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
         # Get frame from the circular buffer (blocking call)
         frame_index, np_image = buffer.get()
         
-        # Check for clean exit
+        # Check for clean exit - if None received and stop is set, exit loop
         if frame_index is None:
             if stop_saving_worker.is_set():
-                break 
+                break
             time.sleep(0.01)
             continue 
             
@@ -83,7 +83,9 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
                         # Lag is high. Prioritize disk saving. DEFER POSTING.
                         if debug_mode:
                             print(f"\n[SAVE WORKER] Deferring Chunk Job {chunk_to_post_index+1}. Lag too high ({buffer_lag} frames).")
-            
+    
+    print(f"\n[SAVE WORKER] Exited main loop. Total frames saved: {i}")
+    
     # --- POST-STOP: Handle all remaining chunks ---
     # >>> CONDITIONAL EXECUTION <<<
     if concurrent_render:
@@ -101,15 +103,17 @@ def saving_worker(buffer, save_path, framerate, render_queue, concurrent_render,
         # Handle the very last partial chunk (the remainder)
         remaining_frames = i % FRAMES_PER_CHUNK
         
+        print(f"[SAVE WORKER] Full chunks: {total_chunks_written}, Remaining frames: {remaining_frames}")
+        
         if remaining_frames > 0:
             chunk_index = total_chunks_written # Use the next logical index
             start_frame_index = i - remaining_frames
             
-            if debug_mode:
-                print(f"\n[SAVE WORKER] Posting final partial chunk job ({remaining_frames} frames)...")
+            print(f"[SAVE WORKER] Posting final partial chunk {chunk_index+1}: frames {start_frame_index} to {i-1} ({remaining_frames} frames)")
             # POSTING TUPLE: (LOGICAL_INDEX, start_frame, n_frames)
             render_queue.put((chunk_index, start_frame_index, remaining_frames))
+        else:
+            print(f"[SAVE WORKER] No remaining frames to post.")
         
-    if debug_mode:
-        print("[SAVE WORKER] Saving worker exiting.")
+    print("[SAVE WORKER] Saving worker function returning.")
     return
