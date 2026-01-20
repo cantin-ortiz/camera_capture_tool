@@ -148,16 +148,42 @@ video_frames = None
 if video_file:
     video_frames = get_frame_count(video_file)
 
-# Plot TTL signal
-plt.figure(figsize=(12, 4))
-plt.step(timestamps, states, where="post")
-plt.xlabel('Time (s)')
+# Plot TTL signal with zoom windows
+fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+
+# Full signal plot
+axes[0].step(timestamps, states, where="post")
+axes[0].set_xlabel('Time (s)')
 if video_frames is not None:
-    plt.title('TTL Channel {}: {} frames | Video frames: {} | Duration: {:.1f}s at {:.1f} Hz'.format(
+    axes[0].set_title('TTL Channel {}: {} frames | Video frames: {} | Duration: {:.1f}s at {:.1f} Hz'.format(
         TTL_CHANNEL, n_frames, video_frames, duration, frame_rate))
 else:
-    plt.title('TTL Channel {}: {} frames | Duration: {:.1f}s at {:.1f} Hz'.format(
+    axes[0].set_title('TTL Channel {}: {} frames | Duration: {:.1f}s at {:.1f} Hz'.format(
         TTL_CHANNEL, n_frames, duration, frame_rate))
+axes[0].grid(True, alpha=0.3)
+
+# Zoom on start (±500ms window)
+zoom_window = 0.5  # 500ms
+start_mask = (timestamps >= start_time - zoom_window) & (timestamps <= start_time + zoom_window)
+axes[1].step(timestamps[start_mask], states[start_mask], where="post")
+axes[1].set_xlabel('Time (s)')
+axes[1].set_title(f'Recording Start ({start_time:.1f}s)')
+axes[1].set_xlim(start_time - zoom_window, start_time + zoom_window)
+axes[1].grid(True, alpha=0.3)
+axes[1].axvline(start_time, color='r', linestyle='--', alpha=0.5, label='First frame')
+axes[1].legend()
+
+# Zoom on end (±500ms window)
+end_mask = (timestamps >= end_time - zoom_window) & (timestamps <= end_time + zoom_window)
+axes[2].step(timestamps[end_mask], states[end_mask], where="post")
+axes[2].set_xlabel('Time (s)')
+axes[2].set_title(f'Recording End ({end_time:.1f}s)')
+axes[2].set_xlim(end_time - zoom_window, end_time + zoom_window)
+axes[2].grid(True, alpha=0.3)
+axes[2].axvline(end_time, color='r', linestyle='--', alpha=0.5, label='Last frame')
+axes[2].legend()
+
+plt.tight_layout()
 plot_path = os.path.join(main_path, f'ttl_signal_channel_{TTL_CHANNEL}.png')
 plt.savefig(plot_path, dpi=150, bbox_inches='tight')
 plt.close()

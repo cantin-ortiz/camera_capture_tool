@@ -180,16 +180,42 @@ video_frames = None
 if video_file:
     video_frames = get_frame_count(video_file)
 
-# Plot full TTL signal
-plt.figure(figsize=(12, 4))
-plt.plot(x,ttl_signal)
-plt.xlabel('Time (s)')
+# Plot TTL signal with zoom windows
+fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+
+# Full signal plot
+axes[0].plot(x, ttl_signal)
+axes[0].set_xlabel('Time (s)')
 if video_frames is not None:
-    plt.title('TTL frames: {:d} | Video frames: {:d} | Duration: {:.1f}s at {:.1f} Hz'.format(
+    axes[0].set_title('TTL frames: {:d} | Video frames: {:d} | Duration: {:.1f}s at {:.1f} Hz'.format(
         n_frames, video_frames, duration, n_frames/duration))
 else:
-    plt.title('TTL frames: {:d} | Duration: {:.1f}s at {:.1f} Hz'.format(
+    axes[0].set_title('TTL frames: {:d} | Duration: {:.1f}s at {:.1f} Hz'.format(
         n_frames, duration, n_frames/duration))
+axes[0].grid(True, alpha=0.3)
+
+# Zoom on start (±500ms window)
+start_center = start_time
+zoom_window = 0.5  # 500ms
+start_mask = (x >= start_center - zoom_window) & (x <= start_center + zoom_window)
+axes[1].plot(x[start_mask], ttl_signal[start_mask])
+axes[1].set_xlabel('Time (s)')
+axes[1].set_title(f'Recording Start ({start_time:.1f}s)')
+axes[1].grid(True, alpha=0.3)
+axes[1].axvline(start_time, color='r', linestyle='--', alpha=0.5, label='First frame')
+axes[1].legend()
+
+# Zoom on end (±500ms window)
+end_center = end_time
+end_mask = (x >= end_center - zoom_window) & (x <= end_center + zoom_window)
+axes[2].plot(x[end_mask], ttl_signal[end_mask])
+axes[2].set_xlabel('Time (s)')
+axes[2].set_title(f'Recording End ({end_time:.1f}s)')
+axes[2].grid(True, alpha=0.3)
+axes[2].axvline(end_time, color='r', linestyle='--', alpha=0.5, label='Last frame')
+axes[2].legend()
+
+plt.tight_layout()
 plot_path_1 = os.path.join(main_path, 'ttl_signal_full.png')
 plt.savefig(plot_path_1, dpi=150, bbox_inches='tight')
 plt.close()
