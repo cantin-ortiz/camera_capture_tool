@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 import numpy as np
-from src.axona import RawFile
+from axona import RawFile
 from datetime import datetime
 import matplotlib.pyplot as plt
 import cv2
