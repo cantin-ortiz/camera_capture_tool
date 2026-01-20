@@ -24,6 +24,8 @@ env/
 # Ignore the generated output video and log file in the base directory
 *.mp4
 *.csv
+*.ipynb
+*.pdf
 
 # Ignore temporary chunk files created by the worker
 *.ts
