@@ -2,6 +2,13 @@
 
 # --- GLOBAL SETTINGS ---
 
+# Default recording framerate (Hz)
+# This should match the framerate configured in SpinView
+DEFAULT_FRAMERATE = 50
+
+# Default GPIO line for strobe output (1 or 2)
+DEFAULT_LINE = 2
+
 # Virtual environment path (relative to project root)
 # Change this if you use a different virtual environment name or location
 # Set to None to use system Python instead of a virtual environment
@@ -12,12 +19,7 @@ VENV_PATH = "../env_camera"
 # Videos and frames will be saved in timestamped subfolders within this directory
 DEFAULT_SAVE_PATH = "~/Documents/flea3_recordings"
 
-# Default recording framerate (Hz)
-# This should match the framerate configured in SpinView
-DEFAULT_FRAMERATE = 50
-
-# Default GPIO line for strobe output (1 or 2)
-DEFAULT_LINE = 2
+# --- ADVANCED SETTINGS ---
 
 # Duration (in seconds) that defines the size of each video chunk.
 # E.g., at 50Hz, 10s = 500 frames per chunk.
