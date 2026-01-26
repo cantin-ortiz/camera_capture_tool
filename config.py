@@ -7,7 +7,7 @@
 DEFAULT_FRAMERATE = 50
 
 # Default GPIO line for strobe output (1 or 2)
-DEFAULT_LINE = 2
+DEFAULT_LINE = 1
 
 # Virtual environment path (relative to project root)
 # Change this if you use a different virtual environment name or location

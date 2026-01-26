@@ -1,10 +1,38 @@
 # Standard Operating Procedure (SOP)
 ## Camera capture tool
 
-**Document Version:** 1.0  
-**Date:** January 19, 2026  
+**Document Version:** 1.1  
+**Date:** January 26, 2026  
 **Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
 **Author:** Cantin Ortiz
+---
+
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Safety and Precautions](#2-safety-and-precautions)
+3. [Pre-Operation Setup](#3-pre-operation-setup)
+   - [3.1 System Configuration](#31-system-configuration)
+   - [3.2 Camera Configuration (SpinView)](#32-camera-configuration-spinview)
+4. [Operating Procedures](#4-operating-procedures)
+   - [4.0 Test Recording (First Time / New Setup)](#40-test-recording-first-time--new-setup)
+   - [4.1 Starting a Recording Session](#41-starting-a-recording-session)
+   - [4.2 Recording Process](#42-recording-process)
+   - [4.3 Post-Recording Processing](#43-post-recording-processing)
+5. [Command-Line Options](#5-command-line-options)
+6. [Output Files](#6-output-files)
+   - [6.1 Directory Structure](#61-directory-structure)
+   - [6.2 CSV Metadata File](#62-csv-metadata-file)
+7. [Synchronization Testing](#7-synchronization-testing)
+   - [7.1 For Axona Recordings](#71-for-axona-recordings)
+   - [7.2 For Open Ephys Recordings](#72-for-open-ephys-recordings)
+   - [7.3 Interpreting Results](#73-interpreting-results)
+8. [Troubleshooting](#8-troubleshooting)
+   - [8.1 Frame Rate Warnings](#81-frame-rate-warnings)
+   - [8.2 Buffer Overflow](#82-buffer-overflow)
+   - [8.3 No Camera Detected](#83-no-camera-detected)
+9. [Revision History](#revision-history)
+
 ---
 
 ## 1. Overview
@@ -87,17 +115,23 @@ This test ensures that:
 
 **Method 2: Custom Parameters**
 1. Open Command Prompt or PowerShell
-2. Navigate to tool directory
+2. Navigate to tool directory using `cd`, for example:
+   ```
+   cd C:\Users\bocca\Documents\camera_capture_tool
+   ```
 3. Run with desired options (see section 5 for arguments):
    ```
    start_recording.bat --duration 30 --framerate 50
    ```
 **Method 3: If the .bat script does not work**
 1. Open Command Prompt or PowerShell
-2. Navigate to tool directory
+2. Navigate to tool directory using `cd`, for example:
+   ```
+   cd C:\Users\bocca\Documents\camera_capture_tool
+   ```
 3. Run with desired options:
    ```
-   python camera_capture_tool\src\main_recorder.py --duration 30 --framerate 50
+   python src\main_recorder.py --duration 30 --framerate 50
    ```
 4. You may need to activate a virtual environment first, or select the correct version of python
 
@@ -235,6 +269,18 @@ After completing a test recording (see section 4.0), verify synchronization betw
      - Middle panel: Zoomed view around recording start
      - Bottom panel: Zoomed view around recording end
 
+**Alternative method (if .bat file doesn't work):**
+Run the Python script directly from Command Prompt or PowerShell:
+```
+cd C:\Users\bocca\Documents\camera_capture_tool
+python src\testing_axona.py
+```
+**Note:** Depending on your installation, you may need to activate the virtual environment first:
+```
+..\env_camera\Scripts\Activate.ps1
+```
+Then follow the file selection prompts as above.
+
 ### 7.2 For Open Ephys Recordings
 
 1. Double-click `test_synchronisation_openephys.bat` in the tool directory
@@ -248,6 +294,18 @@ After completing a test recording (see section 4.0), verify synchronization betw
      - Top panel: Full TTL signal with frame count and timing information
      - Middle panel: Zoomed view around recording start
      - Bottom panel: Zoomed view around recording end
+
+**Alternative method (if .bat file doesn't work):**
+Run the Python script directly from Command Prompt or PowerShell:
+```
+cd C:\Users\bocca\Documents\camera_capture_tool
+python src\testing_openephys.py
+```
+**Note:** Depending on your installation, you may need to activate the virtual environment first:
+```
+..\env_camera\Scripts\Activate.ps1
+```
+Then follow the prompts (enter TTL channel and select files) as above.
 
 ### 7.3 Interpreting Results
 
@@ -280,8 +338,8 @@ If console displays:
 **Actions:**
 1. Frames are saved but video won't be generated (safety feature)
 2. Check camera configuration in SpinView
-3. Verify `--framerate` matches camera settings
-4. Review system performance (CPU/disk usage)
+3. Verify `--framerate` matches camera settings, this is by far the most likely issue
+4. If this does not work, it may reflect more complicated issues (system performance, CPU/disk usage, ...)
 
 ### 8.2 Buffer Overflow
 
@@ -293,7 +351,18 @@ Lag: 950/1000 frames | Time: 25.3s
 **Actions:**
 1. Current recording may crash
 2. For future recordings, increase `BUFFER_MULTIPLIER` in config.py
-3. Consider: faster storage device, lower JPEG quality, or slower frame rate or using the flag `--sequential`
+3. Consider: faster storage device, lower JPEG quality, slower frame rate, or using the flag `--sequential` to postpone all processing to the end of the recording
+
+### 8.3 No Camera Detected
+
+If the program cannot detect the camera even though it's plugged in:
+
+**Actions:**
+1. **Unplug and replug the USB 3.0 cable** - This solves the issue in most cases
+2. Check that SpinView can detect the camera
+3. Ensure no other program (like SpinView) is currently using the camera
+4. Try a different USB 3.0 port
+5. Restart the computer if the problem persists
 
 ---
 
@@ -302,4 +371,5 @@ Lag: 950/1000 frames | Time: 25.3s
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
+| 1.1 | 2026-01-26 | Add test recording procedure and synchronization testing section; improve troubleshooting guidance | Cantin Ortiz |
 
