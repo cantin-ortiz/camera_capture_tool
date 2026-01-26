@@ -79,7 +79,7 @@ Don't worry! Python 3.10.11 can be installed alongside your existing version wit
 
 You need to install two separate components from FLIR: the Spinnaker SDK and the PySpin Python wrapper.
 
-**Note:** Downloading from FLIR requires creating a free account. Alternatively, these installers are available on the lab server (`hypatia/bonsai and spinnaker/current_version`).
+**Note:** Downloading from FLIR requires creating a free account. Alternatively, these installers are available on the lab server (`biotin4.hpc.uio.no\Analyses\scripts\camera_synchronisation\installers`).
 
 ### Part 1: Install Spinnaker SDK Full
 
