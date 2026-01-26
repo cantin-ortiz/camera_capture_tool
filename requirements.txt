@@ -1,0 +1,16 @@
+# Camera Capture Tool - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core dependencies for recording system
+numpy>=1.24.0
+opencv-python>=4.8.0
+scipy>=1.11.0
+
+# Visualization for testing scripts
+matplotlib>=3.7.0
+
+# Note: PySpin (FLIR Spinnaker SDK) must be installed separately
+# Download from: https://www.flir.com/products/spinnaker-sdk/
+# After installing Spinnaker SDK, install the Python wrapper from:
+# C:\Program Files\FLIR Systems\Spinnaker\bin64\vs2015\SpinnakerPython_C-[version].whl
+# Install with: pip install path/to/SpinnakerPython_C-[version].whl
