@@ -32,13 +32,13 @@ The program should be located in the folder `C:\Users\bocca\Documents\camera_cap
 
 1. **Open configuration file** (`config.py`)
 2. **Verify settings:**
-   - `VENV_PATH`: Path to Python virtual environment (or `None` if system Python has all required packages)
+   - `VENV_PATH`: Path to Python virtual environment (or `None` if system Python has all required packages). Should be set during installation.
    - `DEFAULT_SAVE_PATH`: Directory where recordings will be saved
-   - `DEFAULT_FRAMERATE`: Expected camera frame rate (Hz). Must match SpinView
-   - `DEFAULT_LINE`: GPIO line for strobe output (1 or 2). Depends on your setup. Use 1 for Axona, 2 for OpenEphys
+   - `DEFAULT_FRAMERATE`: Expected camera frame rate (Hz). Must match the value set in SpinView
+   - `DEFAULT_LINE`: GPIO line for strobe output (1 or 2). Depends on your setup. With the old camera (room CA1), use 1 for Axona, 2 for OpenEphys. In any other room, use 1.
    - `CHUNK_DURATION_S`: Video chunk size in seconds (default: 10). Likely no need to edit.
    - `BUFFER_MULTIPLIER`: Memory buffer size (increase if disk is slow). Likely no need to edit.
-   - `JPEG_QUALITY`: Image quality 0-100 (default: 85). Likely no need to edit.
+   - `JPEG_QUALITY`: Image quality 0-100 (default: 85). Likely no need to edit. Use lower value if video processing is lagging behind.
 
 3. **Save changes** if any settings were modified
 
@@ -53,6 +53,29 @@ Before using this tool, configure the camera in SpinView:
 ---
 
 ## 4. Operating Procedures
+
+### 4.0 Test Recording (First Time / New Setup)
+
+⚠️ **Before recording with an animal**, always perform a short test recording to verify synchronization:
+
+1. **Perform a ~30 second test recording** without the animal present:
+   - Follow the normal recording procedure (section 4.1-4.2)
+   - Use a short duration: `start_recording.bat --duration 31.5` (avoid multiple of 10 that would match chunk duration)
+   - Make sure both camera and electrophysiology recordings are running
+
+2. **Test synchronization** using the provided testing tools:
+   - For **Axona** recordings: Double-click `test_synchronisation_axona.bat`
+   - For **Open Ephys** recordings: Double-click `test_synchronisation_openephys.bat`
+   - See **Section 8: Synchronization Testing** for detailed instructions
+
+3. **Verify results**: Check that the frame count from TTL signals matches the video frame count (difference should be <5 frames)
+
+4. **Only proceed with animal recording** if synchronization test passes
+
+This test ensures that:
+- Camera and electrophysiology systems are properly synchronized
+- GPIO signals are being recorded correctly
+- No frames are being dropped during acquisition
 
 ### 4.1 Starting a Recording Session
 
@@ -195,9 +218,59 @@ The `.csv` file contains:
 
 ---
 
-## 7. Troubleshooting
+## 7. Synchronization Testing
 
-### 7.1 Frame Rate Warnings
+After completing a test recording (see section 4.0), verify synchronization between camera and electrophysiology systems.
+
+### 7.1 For Axona Recordings
+
+1. Double-click `test_synchronisation_axona.bat` in the tool directory
+2. Select the Axona `.bin` file from your test recording
+3. Select the corresponding video file (`.mp4`)
+4. Review the output:
+   - **Console output**: Shows detected frame counts and comparison
+   - **Plot file**: Saved as `ttl_signal_full.png` in the same directory as the `.bin` file
+   - The plot shows:
+     - Top panel: Full TTL signal with frame count and timing information
+     - Middle panel: Zoomed view around recording start
+     - Bottom panel: Zoomed view around recording end
+
+### 7.2 For Open Ephys Recordings
+
+1. Double-click `test_synchronisation_openephys.bat` in the tool directory
+2. Enter the TTL channel number (typically 1, press Enter for default)
+3. Select the Open Ephys recording folder (e.g., `experiment1/recording1`)
+4. Select the corresponding video file (`.mp4`)
+5. Review the output:
+   - **Console output**: Shows detected frame counts and comparison
+   - **Plot file**: Saved as `ttl_signal_channel_X.png` in the parent directory of the recording folder
+   - The plot shows:
+     - Top panel: Full TTL signal with frame count and timing information
+     - Middle panel: Zoomed view around recording start
+     - Bottom panel: Zoomed view around recording end
+
+### 7.3 Interpreting Results
+
+The testing tools compare the number of frames detected from:
+- **TTL signal**: Rising edges in the electrophysiology recording (triggered by camera GPIO)
+- **Video file**: Actual frames saved in the video
+
+**Frame difference interpretation:**
+- **< 5 frames**: ✓ Excellent - synchronization is working correctly
+- **5-10 frames**: ⚠ Suspicious - verify setup, may still be acceptable
+- **> 10 frames**: ✗ Warning - something is wrong, do not proceed with animal recording
+
+**Common issues if synchronization fails:**
+- GPIO cable not properly connected
+- Wrong GPIO line selected in config.py or command-line arguments
+- TTL channel mismatch in Open Ephys recordings
+- Camera or electrophysiology system not properly configured
+
+---
+
+## 8. Troubleshooting
+
+### 8.1 Frame Rate Warnings
 
 If console displays:
 ```
@@ -210,7 +283,7 @@ If console displays:
 3. Verify `--framerate` matches camera settings
 4. Review system performance (CPU/disk usage)
 
-### 7.2 Buffer Overflow
+### 8.2 Buffer Overflow
 
 If lag counter approaches buffer size:
 ```
@@ -220,7 +293,7 @@ Lag: 950/1000 frames | Time: 25.3s
 **Actions:**
 1. Current recording may crash
 2. For future recordings, increase `BUFFER_MULTIPLIER` in config.py
-3. Consider: faster storage device, lower JPEG quality, or slower frame rate  or using the flag `--sequential`
+3. Consider: faster storage device, lower JPEG quality, or slower frame rate or using the flag `--sequential`
 
 ---
 
