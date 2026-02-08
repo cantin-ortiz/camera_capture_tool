@@ -1,9 +1,9 @@
 # Standard Operating Procedure (SOP)
 ## Camera capture tool
 
-**Document Version:** 1.1  
-**Date:** January 26, 2026  
-**Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
+**Document Version:** 1.2  
+**Date:** February 8, 2026  
+**Purpose:** Guide for operating the camera recording tool with synchronization of electrophysiological data  
 **Author:** Cantin Ortiz
 ---
 
@@ -16,9 +16,8 @@
    - [3.2 Camera Configuration (SpinView)](#32-camera-configuration-spinview)
 4. [Operating Procedures](#4-operating-procedures)
    - [4.0 Test Recording (First Time / New Setup)](#40-test-recording-first-time--new-setup)
-   - [4.1 Starting a Recording Session](#41-starting-a-recording-session)
-   - [4.2 Recording Process](#42-recording-process)
-   - [4.3 Post-Recording Processing](#43-post-recording-processing)
+   - [4.1 Recording Process](#41-recording-process)
+   - [4.2 Post-Recording Processing](#42-post-recording-processing)
 5. [Command-Line Options](#5-command-line-options)
 6. [Output Files](#6-output-files)
    - [6.1 Directory Structure](#61-directory-structure)
@@ -58,7 +57,10 @@ This tool captures synchronized video from a FLIR/BlackFly camera with GPIO stro
 
 The program should be located in the folder `C:\Users\bocca\Documents\camera_capture_tool` on KPM computers (the username "bocca" may vary)
 
-1. **Open configuration file** (`config.py`)
+1. **Open configuration file** (`config.py`) with a text editor (do NOT run it as a Python script).
+
+   - Example (Windows Notepad): right-click `config.py` → Open with → Notepad, or open Notepad and use File → Open to select the file.
+   - Important: do NOT double-click the file to "run" it — that will open a terminal which closes immediately and will not let you edit the settings.
 2. **Verify settings:**
    - `VENV_PATH`: Path to Python virtual environment (or `None` if system Python has all required packages). Should be set during installation.
    - `DEFAULT_SAVE_PATH`: Directory where recordings will be saved
@@ -87,14 +89,14 @@ Before using this tool, configure the camera in SpinView:
 ⚠️ **Before recording with an animal**, always perform a short test recording to verify synchronization:
 
 1. **Perform a ~30 second test recording** without the animal present:
-   - Follow the normal recording procedure (section 4.1-4.2)
-   - Use a short duration: `start_recording.bat --duration 31.5` (avoid multiple of 10 that would match chunk duration)
-   - Make sure both camera and electrophysiology recordings are running
+   - Follow the normal recording procedure (section 4.1)
+   - Use a short duration: `.\start_recording.bat --duration 31.5` (avoid multiples of 10 that would match chunk duration)
+   - Record both the camera and the electrophysiology.
 
-2. **Test synchronization** using the provided testing tools:
+2. **Test synchronization** using the provided testing tools
+   - See **Section 8: Synchronization Testing** for detailed instructions
    - For **Axona** recordings: Double-click `test_synchronisation_axona.bat`
    - For **Open Ephys** recordings: Double-click `test_synchronisation_openephys.bat`
-   - See **Section 8: Synchronization Testing** for detailed instructions
 
 3. **Verify results**: Check that the frame count from TTL signals matches the video frame count (difference should be <5 frames)
 
@@ -105,46 +107,47 @@ This test ensures that:
 - GPIO signals are being recorded correctly
 - No frames are being dropped during acquisition
 
-### 4.1 Starting a Recording Session
-
-**Method 1: Quick Start (Default Settings)**
-1. Double-click `start_recording.bat`
-2. Wait for camera initialization (3-5 seconds)
-3. Live preview window appears showing camera feed
-4. Console displays: `Press ENTER to START recording`
-
-**Method 2: Custom Parameters**
-1. Open Command Prompt or PowerShell
-2. Navigate to tool directory using `cd`, for example:
-   ```
-   cd C:\Users\bocca\Documents\camera_capture_tool
-   ```
-3. Run with desired options (see section 5 for arguments):
-   ```
-   start_recording.bat --duration 30 --framerate 50
-   ```
-**Method 3: If the .bat script does not work**
-1. Open Command Prompt or PowerShell
-2. Navigate to tool directory using `cd`, for example:
-   ```
-   cd C:\Users\bocca\Documents\camera_capture_tool
-   ```
-3. Run with desired options:
-   ```
-   python src\main_recorder.py --duration 30 --framerate 50
-   ```
-4. You may need to activate a virtual environment first, or select the correct version of python
-
-### 4.2 Recording Process
+### 4.1 Recording Process
 
 1. **Open the video capture tool — preview Phase**
+
    - Live video preview appears (unless `--nolive` specified)
    - Verify camera is showing correct view
    - Adjust positioning/focus if needed
-   - Opening the program before starting the ephys recording ensures that the GPIO is set to the correct mode (constant value).
+
+   ⚠️ **Do not press ENTER yet!** You should start the capture tool to ensure that the GPIO is set to the correct mode (constant value), but do not start the video acquisition. Start the electrophysiology recording first (step 2).
+
+      **Method 1: Quick Start (Default Settings)**
+      1. Double-click `start_recording.bat`
+      2. Wait for camera initialization (3-5 seconds)
+      3. Live preview window appears showing camera feed
+
+      **Method 2: Custom Parameters**
+      1. Open Command Prompt or PowerShell
+      2. Navigate to tool directory using `cd`, for example:
+         ```
+         cd C:\Users\bocca\Documents\camera_capture_tool
+         ```
+      3. Run with desired options (see section 5 for arguments):
+         ```
+         .\start_recording.bat --duration 30 --framerate 50
+         ```
+
+      **Method 3: If the .bat script does not work**
+      1. Open Command Prompt or PowerShell
+      2. Navigate to tool directory using `cd`, for example:
+         ```
+         cd C:\Users\bocca\Documents\camera_capture_tool
+         ```
+      3. Run with desired options:
+         ```
+         python src\main_recorder.py --duration 30 --framerate 50
+         ```
+      4. You may need to activate a virtual environment first, or select the correct version of python
+
 
 2. **Start Ephys recording**
-   - It is crucial for synchronisation that the ephys recording is started *before* the video recording
+   - It is crucial for synchronization that the ephys recording is started *before* the video recording
    - The video recording is considered started when the `ENTER` key is pressed and frames get acquired, not when opening the program.
 
 3. **Start video recording**
@@ -171,7 +174,7 @@ This test ensures that:
    - Only after the camera recording has been stopped, which deactivates the GPIO strobe, can the ephys recording end.
    - Remember to write down which video recording corresponds to your ephys session.
 
-### 4.3 Post-Recording Processing
+### 4.2 Post-Recording Processing
 
 **Automatic steps (no user input required):**
 1. Frame saving completes
@@ -204,16 +207,16 @@ Please note that for some of these arguments, the default value is set in `confi
 
 ```batch
 # 30-second recording at 50 Hz, save only video
-start_recording.bat --duration 30 --framerate 50
+.\start_recording.bat --duration 30 --framerate 50
 
 # Continuous recording until manual stop, keep frame files
-start_recording.bat --output both
+.\start_recording.bat --output both
 
 # Save only frames, no video encoding
-start_recording.bat --duration 10 --output frames
+.\start_recording.bat --duration 10 --output frames
 
 # Recording without live preview (better performance)
-start_recording.bat --duration 60 --nolive
+.\start_recording.bat --duration 60 --nolive
 ```
 
 ---
@@ -370,6 +373,7 @@ If the program cannot detect the camera even though it's plugged in:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| 1.2 | 2026-02-08 | Clarify procedures, normalize indentation, add acquisition warning, and fix TOC | Cantin Ortiz |
 | 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
 | 1.1 | 2026-01-26 | Add test recording procedure and synchronization testing section; improve troubleshooting guidance | Cantin Ortiz |
 
