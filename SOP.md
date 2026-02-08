@@ -3,7 +3,7 @@
 
 **Document Version:** 1.2  
 **Date:** February 8, 2026  
-**Purpose:** Guide for operating the camera recording tool with synchronization of electrophysiological data  
+**Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
 **Author:** Cantin Ortiz
 ---
 
@@ -84,7 +84,7 @@ Before using this tool, configure the camera in SpinView:
 
 ## 4. Operating Procedures
 
-### 4.0 Test Recording (First Time / New Setup)
+### 4.0 Test Recording (First recording)
 
 ⚠️ **Before recording with an animal**, always perform a short test recording to verify synchronization:
 
@@ -147,7 +147,7 @@ This test ensures that:
 
 
 2. **Start Ephys recording**
-   - It is crucial for synchronization that the ephys recording is started *before* the video recording
+   - It is crucial for synchronisation that the ephys recording is started *before* the video recording
    - The video recording is considered started when the `ENTER` key is pressed and frames get acquired, not when opening the program.
 
 3. **Start video recording**
@@ -373,7 +373,7 @@ If the program cannot detect the camera even though it's plugged in:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
-| 1.2 | 2026-02-08 | Clarify procedures, normalize indentation, add acquisition warning, and fix TOC | Cantin Ortiz |
-| 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
+| 1.2 | 2026-02-08 | Update SOP based to clarify unclear points based on user feedback | Cantin Ortiz |
 | 1.1 | 2026-01-26 | Add test recording procedure and synchronization testing section; improve troubleshooting guidance | Cantin Ortiz |
+| 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
 
