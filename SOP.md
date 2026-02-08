@@ -15,7 +15,7 @@
    - [3.1 System Configuration](#31-system-configuration)
    - [3.2 Camera Configuration (SpinView)](#32-camera-configuration-spinview)
 4. [Operating Procedures](#4-operating-procedures)
-   - [4.0 Test Recording (First Time / New Setup)](#40-test-recording-first-time--new-setup)
+   - [4.0 Test Recording (First recording)](#40-test-recording-first-recording)
    - [4.1 Recording Process](#41-recording-process)
    - [4.2 Post-Recording Processing](#42-post-recording-processing)
 5. [Command-Line Options](#5-command-line-options)
