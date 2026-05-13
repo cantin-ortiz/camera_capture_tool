@@ -1,8 +1,8 @@
 # Standard Operating Procedure (SOP)
 ## Camera capture tool
 
-**Document Version:** 1.2  
-**Date:** February 8, 2026  
+**Document Version:** 1.3  
+**Date:** May 13, 2026  
 **Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
 **Author:** Cantin Ortiz
 ---
@@ -14,6 +14,7 @@
 3. [Pre-Operation Setup](#3-pre-operation-setup)
    - [3.1 System Configuration](#31-system-configuration)
    - [3.2 Camera Configuration (SpinView)](#32-camera-configuration-spinview)
+   - [3.3 Electrophysiology System Connections](#33-electrophysiology-system-connections)
 4. [Operating Procedures](#4-operating-procedures)
    - [4.0 Test Recording (First recording)](#40-test-recording-first-recording)
    - [4.1 Recording Process](#41-recording-process)
@@ -79,6 +80,15 @@ Before using this tool, configure the camera in SpinView:
 2. Set the resolution as desired
 3. Crop the image as wanted
 4. **Close SpinView**
+
+### 3.3 Electrophysiology System Connections
+
+The camera synchronisation signal (GPIO strobe) must be routed to the correct input port of the electrophysiology system. All downstream analysis scripts assume the signal is recorded on a specific, fixed port.
+
+- **INTAN system**: Connect the camera GPIO output to **Digital Input 01**
+- **Open Ephys (IO Board)**: Connect the camera GPIO output to **Port 01** of the IO Board
+
+⚠️ **If these ports are unavailable**: Do not simply use any other available port without checking feasibility first. All downstream analysis assumes the signal is on the designated port listed above; using a different port will cause silent mismatches in every analysis step unless every script is manually reconfigured. Always assess whether an alternative port is truly unavoidable before proceeding, and document the deviation clearly.
 
 ---
 
@@ -185,6 +195,12 @@ This test ensures that:
 6. Console displays: "Recording complete!"
 
 **Press any key** to close the program.
+
+⚠️ **Save both output files**: After the recording is complete, make sure to preserve both files that share the same base name:
+- The **video file** (`.mp4`) — the actual recording
+- The **metadata file** (`.csv`) — contains all configuration parameters and precise timing data required for synchronisation analysis
+
+Losing the `.csv` file will prevent accurate post-hoc synchronisation with the electrophysiology data. See **Section 6** for details on their contents.
 
 ---
 
@@ -373,6 +389,7 @@ If the program cannot detect the camera even though it's plugged in:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| 1.3 | 2026-05-13 | Add electrophysiology input port specifications (INTAN / Open Ephys); add post-recording file preservation instructions | Cantin Ortiz |
 | 1.2 | 2026-02-08 | Update SOP based to clarify unclear points based on user feedback | Cantin Ortiz |
 | 1.1 | 2026-01-26 | Add test recording procedure and synchronization testing section; improve troubleshooting guidance | Cantin Ortiz |
 | 1.0 | 2026-01-19 | Initial SOP creation | Cantin Ortiz |
