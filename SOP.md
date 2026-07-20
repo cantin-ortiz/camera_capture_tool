@@ -1,8 +1,8 @@
 # Standard Operating Procedure (SOP)
 ## Camera capture tool
 
-**Document Version:** 1.3  
-**Date:** May 13, 2026  
+**Document Version:** 1.4  
+**Date:** July 20, 2026  
 **Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
 **Author:** Cantin Ortiz
 ---
@@ -79,7 +79,8 @@ Before using this tool, configure the camera in SpinView:
 1. Set desired frame rate (e.g., 50 Hz)
 2. Set the resolution as desired
 3. Crop the image as wanted
-4. **Close SpinView**
+4. **Recommended:** For better contrast, turn on the red light, even if the white light is already on
+5. **Close SpinView**
 
 ### 3.3 Electrophysiology System Connections
 
@@ -389,6 +390,7 @@ If the program cannot detect the camera even though it's plugged in:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| 1.4 | 2026-07-20 | Add recommendation to turn on the red light for better contrast during camera configuration | Cantin Ortiz |
 | 1.3 | 2026-05-13 | Add electrophysiology input port specifications (INTAN / Open Ephys); add post-recording file preservation instructions | Cantin Ortiz |
 | 1.2 | 2026-02-08 | Update SOP based to clarify unclear points based on user feedback | Cantin Ortiz |
 | 1.1 | 2026-01-26 | Add test recording procedure and synchronization testing section; improve troubleshooting guidance | Cantin Ortiz |
