@@ -1,8 +1,8 @@
 # Standard Operating Procedure (SOP)
 ## Camera capture tool
 
-**Document Version:** 1.4  
-**Date:** July 20, 2026  
+**Document Version:** 1.5  
+**Date:** October 30, 2026  
 **Purpose:** Guide for operating the camera recording tool with synchronisation of electrophysiological data  
 **Author:** Cantin Ortiz
 ---
@@ -26,7 +26,8 @@
 7. [Synchronization Testing](#7-synchronization-testing)
    - [7.1 For Axona Recordings](#71-for-axona-recordings)
    - [7.2 For Open Ephys Recordings](#72-for-open-ephys-recordings)
-   - [7.3 Interpreting Results](#73-interpreting-results)
+   - [7.3 For Intan Recordings](#73-for-intan-recordings)
+   - [7.4 Interpreting Results](#74-interpreting-results)
 8. [Troubleshooting](#8-troubleshooting)
    - [8.1 Frame Rate Warnings](#81-frame-rate-warnings)
    - [8.2 Buffer Overflow](#82-buffer-overflow)
@@ -108,6 +109,7 @@ The camera synchronisation signal (GPIO strobe) must be routed to the correct in
    - See **Section 8: Synchronization Testing** for detailed instructions
    - For **Axona** recordings: Double-click `test_synchronisation_axona.bat`
    - For **Open Ephys** recordings: Double-click `test_synchronisation_openephys.bat`
+   - For **Intan** recordings: Double-click `test_synchronisation_intan.bat`
 
 3. **Verify results**: Check that the frame count from TTL signals matches the video frame count (difference should be <5 frames)
 
@@ -327,7 +329,35 @@ python src\testing_openephys.py
 ```
 Then follow the prompts (enter TTL channel and select files) as above.
 
-### 7.3 Interpreting Results
+### 7.3 For Intan Recordings
+
+1. Double-click `test_synchronisation_intan.bat` in the tool directory
+2. Enter the digital input channel number (typically 1 for `DIGITAL-IN-01`, press Enter for default)
+3. Select the Intan `.rhs` file from your test recording
+4. Select the corresponding video file (`.mp4`)
+5. Review the output:
+   - **Console output**: Shows detected frame counts and comparison
+   - **Plot file**: Saved as `ttl_signal_din_XX.png` in the same directory as the `.rhs` file
+   - The plot shows:
+     - Top panel: Full TTL signal with frame count and timing information
+     - Middle panel: Zoomed view around recording start
+     - Bottom panel: Zoomed view around recording end
+
+**Note:** Only the traditional single `.rhs` file format is supported (not "One File Per Signal Type" or "One File Per Channel"). The whole file is loaded into memory, so use a short test recording.
+
+**Alternative method (if .bat file doesn't work):**
+Run the Python script directly from Command Prompt or PowerShell:
+```
+cd C:\Users\bocca\Documents\camera_capture_tool
+python src\testing_intan.py
+```
+**Note:** Depending on your installation, you may need to activate the virtual environment first:
+```
+..\env_camera\Scripts\Activate.ps1
+```
+Then follow the prompts (enter digital input channel and select files) as above.
+
+### 7.4 Interpreting Results
 
 The testing tools compare the number of frames detected from:
 - **TTL signal**: Rising edges in the electrophysiology recording (triggered by camera GPIO)
@@ -341,7 +371,8 @@ The testing tools compare the number of frames detected from:
 **Common issues if synchronization fails:**
 - GPIO cable not properly connected
 - Wrong GPIO line selected in config.py or command-line arguments
-- TTL channel mismatch in Open Ephys recordings
+- TTL channel mismatch in Open Ephys or Intan recordings
+- Ephys recording stopped before the video recording (TTL pulses still running at the very end of the bottom plot panel)
 - Camera or electrophysiology system not properly configured
 
 ---
@@ -390,6 +421,7 @@ If the program cannot detect the camera even though it's plugged in:
 
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
+| 1.5 | 2026-10-30 | Add Intan synchronisation testing tool (`test_synchronisation_intan.bat`) | Cantin Ortiz |
 | 1.4 | 2026-07-20 | Add recommendation to turn on the red light for better contrast during camera configuration | Cantin Ortiz |
 | 1.3 | 2026-05-13 | Add electrophysiology input port specifications (INTAN / Open Ephys); add post-recording file preservation instructions | Cantin Ortiz |
 | 1.2 | 2026-02-08 | Update SOP based to clarify unclear points based on user feedback | Cantin Ortiz |
